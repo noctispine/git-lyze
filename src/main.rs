@@ -1,25 +1,9 @@
-use clap::Parser;
 use std::env::current_dir;
-
-// Analyze git repo by conventional commits
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Exclude scope
-    #[arg(short, long)]
-    scope: bool,
-
-    /// Exclude commit type
-    #[arg(short, long)]
-    commit_type: bool,
-
-    /// Repository path
-    #[arg(short, long)]
-    path: Option<String>
-}
+use clap::Parser;
+use git_lyze::config::Config;
 
 fn main() {
-    let args = Args::parse();
+    let args = Config::parse();
 
     let path = args.path
         .unwrap_or((current_dir()
