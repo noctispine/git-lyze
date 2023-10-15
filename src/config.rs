@@ -14,5 +14,8 @@ pub struct Config {
 
     /// Repository path
     #[arg(short, long)]
-    pub path: Option<String>
+    pub path: Option<String>,
+
+    #[arg(short = 't', long, default_value = "type(optional_scope): description")]
+    pub convention_style: String
 }
