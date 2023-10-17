@@ -2,11 +2,12 @@ use regex::Regex;
 
 
 #[derive(Debug)]
-pub struct StyleBuilder {
+pub struct ConventionBuilder {
     regex: Regex,
 }
 
 #[derive(Debug)]
+#[derive(Default)]
 pub struct ParsedCommitInfo {
     pub type_: String,
     pub optional_scope: Option<String>,
@@ -15,8 +16,8 @@ pub struct ParsedCommitInfo {
 
 const OPTIONAL_SCOPE_INDICATOR: &str = "optional_scope";
 
-impl StyleBuilder {
-    pub fn build(example_commit_message: String) -> StyleBuilder {
+impl ConventionBuilder {
+    pub fn build(example_commit_message: String) -> ConventionBuilder {
         // optional_scope_indicators = ()
         let indx = example_commit_message.find(OPTIONAL_SCOPE_INDICATOR).expect("There must be an optional scope indicator");
         let indicators = (
@@ -26,7 +27,7 @@ impl StyleBuilder {
 
         let regex_pattern = format!(r"^(.*?)(?:\{}(.*?)\{})?: (.*)$", indicators.0, indicators.1);
 
-        StyleBuilder { regex: Regex::new(&regex_pattern).unwrap() }
+        ConventionBuilder { regex: Regex::new(&regex_pattern).unwrap() }
     }
 
     pub fn construct_info(&self, message: String) -> Option<ParsedCommitInfo> {
@@ -52,7 +53,7 @@ mod tests {
     #[test]
     fn can_construct_fully_described_commit_message() {
         let example_commit_message = String::from("type(optional_scope): description");
-        let style_builder = StyleBuilder::build(example_commit_message);
+        let style_builder = ConventionBuilder::build(example_commit_message);
         let parsed_info = style_builder.construct_info(String::from("ci(frontend): build times")).unwrap();
         assert_eq!(parsed_info.type_, "ci");
         assert_eq!(parsed_info.optional_scope.unwrap(), "frontend");
@@ -62,7 +63,7 @@ mod tests {
     #[test]
     fn can_construct_commit_message_without_optional_scope() {
         let example_commit_message = String::from("type(optional_scope): description");
-        let style_builder = StyleBuilder::build(example_commit_message);
+        let style_builder = ConventionBuilder::build(example_commit_message);
         let parsed_info = style_builder.construct_info(String::from("ci: build times")).unwrap();
         assert_eq!(parsed_info.type_, "ci");
         assert_eq!(parsed_info.optional_scope, None);
@@ -72,7 +73,7 @@ mod tests {
     #[test]
     fn should_skip_non_conventional_commit() {
         let example_commit_message = String::from("type(optional_scope): description");
-        let style_builder = StyleBuilder::build(example_commit_message);
+        let style_builder = ConventionBuilder::build(example_commit_message);
         let parsed_info = style_builder.construct_info(String::from("init"));
         assert!(parsed_info.is_none());
     }

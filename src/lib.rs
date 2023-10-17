@@ -2,6 +2,7 @@ pub mod customerror;
 pub mod repo;
 pub mod config;
 pub mod commit;
+pub mod convention;
 
 use std::env::current_dir;
 use clap::Parser;
