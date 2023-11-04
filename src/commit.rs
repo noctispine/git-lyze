@@ -69,20 +69,6 @@ impl CommitBucket {
                 .construct_info(g_commit.summary().unwrap_or("").to_string())
                 .unwrap_or_default();
 
-            if !parsed_message_info.type_.is_empty() {
-                let count = types.get(&parsed_message_info.type_.clone()).unwrap_or(&0);
-                let tmp = count + 1;
-                types.insert(parsed_message_info.type_.clone(), tmp);
-            };
-
-            if parsed_message_info.optional_scope.is_some() {
-                let count = scopes
-                    .get(&parsed_message_info.optional_scope.clone().unwrap())
-                    .unwrap_or(&0);
-                let tmp = count + 1;
-                scopes.insert(parsed_message_info.optional_scope.clone().unwrap(), tmp);
-            }
-
             let commit_info: CommitInfo = CommitInfo {
                 author: Author {
                     name: g_commit.author().name().unwrap_or("").to_string(),
@@ -143,6 +129,20 @@ impl CommitBucket {
             .collect();
 
         let total = commits.len();
+
+        for commit in commits.iter() {
+            if !commit.type_.is_empty() {
+                let c_commit_type = commit.type_.clone();
+                let new_count = types.get(&c_commit_type).unwrap_or(&0) + 1;
+                types.insert(c_commit_type, new_count);
+            }
+
+            if !commit.scope.is_empty() {
+                let c_scope = commit.scope.clone();
+                let new_count = scopes.get(&c_scope).unwrap_or(&0) + 1;
+                scopes.insert(c_scope, new_count);
+            }
+        }
 
         Ok(CommitBucket {
             commits,
