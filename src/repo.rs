@@ -1,24 +1,17 @@
-use crate::customerror::{
-    Error,
-    Result
-};
-use std::path::Path;
-use git2::{
-    Repository,
-    Commit, Sort
-};
+use crate::customerror::{Error, Result};
+use git2::{Commit, Diff, Repository, Sort};
 use std::io;
-
+use std::path::Path;
 
 pub struct Repo {
-    dot_git: Repository
+    dot_git: Repository,
 }
 
 impl Repo {
     pub fn init(path: &Path) -> Result<Self> {
         if path.exists() {
             Ok(Self {
-                dot_git: Repository::open(path)?
+                dot_git: Repository::open(path)?,
             })
         } else {
             Err(Error::IoError(io::Error::new(
@@ -30,7 +23,7 @@ impl Repo {
 
     pub fn get_commits(&self) -> Result<Vec<Commit>> {
         let mut walk = self.dot_git.revwalk()?;
-		walk.set_sorting(Sort::TOPOLOGICAL)?;
+        walk.set_sorting(Sort::TOPOLOGICAL)?;
 
         walk.push_head()?;
 
@@ -43,21 +36,39 @@ impl Repo {
     }
 
     pub fn find_last_commit(&self) -> Result<Commit> {
-        let obj = self.dot_git.head()?.resolve()?.peel(git2::ObjectType::Commit)?;
-        obj.into_commit().map_err(|_| Error::GitError(git2::Error::from_str("Couldn't find the commit")))
-        
+        let obj = self
+            .dot_git
+            .head()?
+            .resolve()?
+            .peel(git2::ObjectType::Commit)?;
+        obj.into_commit()
+            .map_err(|_| Error::GitError(git2::Error::from_str("Couldn't find the commit")))
+    }
+
+    pub fn get_diff(&self, commit: &git2::Commit) -> Option<Diff> {
+        if let Ok(prev_commit) = commit.parent(0) {
+            let diff = self.dot_git.diff_tree_to_tree(
+                prev_commit.tree().ok().as_ref(),
+                commit.tree().ok().as_ref(),
+                None,
+            );
+
+            match diff {
+                Ok(diff) => return Some(diff),
+                Err(_) => return None,
+            }
+        }
+        None
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use tempfile::TempDir;
     use std::cell::RefCell;
-
+    use tempfile::TempDir;
 
     #[test]
     fn test_init_existing_path() {
@@ -86,12 +97,10 @@ mod tests {
 
     #[test]
     fn can_get_commits() {
-
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         Repository::init(temp_dir.path()).expect("Failed to create temp repository");
         let repo = RefCell::new(Repo::init(temp_dir.path()).expect("Failed to get the repo"));
         let b_repo = repo.borrow_mut();
-
 
         let mut index = b_repo.dot_git.index().unwrap();
         let oid = index.write_tree().unwrap();
@@ -99,33 +108,27 @@ mod tests {
         let message = "feat(repo): add get_commits";
         let tree = b_repo.dot_git.find_tree(oid).unwrap();
 
-
-        b_repo.dot_git.commit(
-            Some("HEAD"), 
-            &signature, 
-            &signature, 
-            message, 
-            &tree, 
-            &[]
-        ).unwrap();
+        b_repo
+            .dot_git
+            .commit(Some("HEAD"), &signature, &signature, message, &tree, &[])
+            .unwrap();
 
         let parent = b_repo.find_last_commit().unwrap();
 
-        b_repo.dot_git.commit(
-            Some("HEAD"), 
-            &signature, 
-            &signature, 
-            message, 
-            &tree, 
-            &[&parent]
-        ).unwrap();
-        
-
+        b_repo
+            .dot_git
+            .commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                message,
+                &tree,
+                &[&parent],
+            )
+            .unwrap();
 
         let commits = b_repo.get_commits();
         assert!(commits.is_ok());
         assert_eq!(commits.unwrap().len(), 2);
-        
-
     }
 }
