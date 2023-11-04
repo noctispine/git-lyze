@@ -193,10 +193,10 @@ impl CommitBucket {
 mod tests {
     use tempfile::TempDir;
 
-    use crate::utils::mock_config;
+    use crate::test_utils::mock_config;
 
     use super::*;
-    use crate::utils::setup_repo;
+    use crate::test_utils::setup_repo;
 
     #[test]
     fn can_parse_commits() {
