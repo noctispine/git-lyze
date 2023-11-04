@@ -19,7 +19,7 @@ impl ConventionBuilder {
         let indx = example_commit_message
             .find(OPTIONAL_SCOPE_INDICATOR)
             .expect("There must be an optional scope indicator");
-        let indicators = (
+        let indicators: (char, char) = (
             example_commit_message.as_bytes()[indx - 1] as char,
             example_commit_message.as_bytes()[OPTIONAL_SCOPE_INDICATOR.len() + indx] as char,
         );
