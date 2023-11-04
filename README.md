@@ -1,0 +1,20 @@
+### TODO
+- [x] exclude scope
+- [x] exclude type
+- [ ] reporters
+	- [ ] json
+	- [ ] stdout
+- [ ] Sorts
+	- [ ] date
+	- [ ] topological
+	- [ ] -
+- [ ] Filters
+	- [x] filename(s)
+	- [x] author(s)
+	- [x] scope(s)
+	- [x] type(s)
+	- [ ] start_date
+	- [ ] end_date
+	- [ ] ownership
+- [ ] Ownership
+- [ ] Merge config file and args instead overriding
