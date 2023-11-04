@@ -1,6 +1,6 @@
 use std::path;
 
-use clap_serde_derive::clap::{self, Parser};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Parser)]
