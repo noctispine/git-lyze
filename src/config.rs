@@ -1,21 +1,45 @@
-use clap::Parser;
+use std::path;
 
-// Analyze git repo by conventional commits
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+use clap_serde_derive::clap::{self, Parser};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Parser)]
+#[serde(rename_all = "camelCase")]
+#[command(author, version, about)]
 pub struct Config {
+    /// Config Path
+    #[arg(short = 'c', long, default_value = "lyze.json")]
+    pub config_path: path::PathBuf,
+
     /// Exclude scope
-    #[arg(short, long)]
-    pub scope: bool,
+    #[arg(long)]
+    pub exclude_scope: bool,
 
     /// Exclude commit type
-    #[arg(short, long)]
-    pub commit_type: bool,
+    #[arg(long)]
+    pub exclude_commit_type: bool,
 
     /// Repository path
-    #[arg(short, long)]
+    #[arg(long)]
     pub path: Option<String>,
 
+    // Convetion style
     #[arg(short = 't', long, default_value = "type(optional_scope): description")]
-    pub convention_style: String
+    pub convention_style: String,
+
+    // filter by changed file patterns
+    #[arg(short = 'f', long = "file-patterns", value_parser, num_args=1..)]
+    pub filter_filenames: Option<Vec<String>>,
+
+    /// Filter by author's username
+    #[arg(short = 'u', long = "author")]
+    pub filter_author: Option<String>,
+
+    /// Filter by scope e.g., "utils"
+    #[arg(short = 's', long = "scope")]
+    pub filter_scope: Option<String>,
+
+    /// Filter by type e.g., "feat"
+    #[arg(short = 'y', long = "type")]
+    pub filter_type: Option<String>,
 }
