@@ -32,14 +32,14 @@ pub struct Config {
     pub filter_filenames: Option<Vec<String>>,
 
     /// Filter by author's username
-    #[arg(short = 'u', long = "author")]
-    pub filter_author: Option<String>,
+    #[arg(short = 'u', long = "authors", value_parser, num_args=1..)]
+    pub filter_authors: Option<Vec<String>>,
 
     /// Filter by scope e.g., "utils"
-    #[arg(short = 's', long = "scope")]
-    pub filter_scope: Option<String>,
+    #[arg(short = 's', long = "scopes", value_parser, num_args=1..)]
+    pub filter_scopes: Option<Vec<String>>,
 
     /// Filter by type e.g., "feat"
-    #[arg(short = 'y', long = "type")]
-    pub filter_type: Option<String>,
+    #[arg(short = 'y', long = "types", value_parser, num_args=1..)]
+    pub filter_types: Option<Vec<String>>,
 }

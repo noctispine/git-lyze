@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use git2::{Commit, Delta, DiffStatsFormat};
+use git2::{Commit, Delta, DiffStatsFormat, Time};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +41,7 @@ pub struct CommitInfo {
     pub type_: String,
     pub scope: String,
     pub stats: Result<Stats>,
-    // pub files: Vec<String>,
+    pub time: Time,
 }
 pub struct CommitBucket {
     pub commits: Vec<CommitInfo>,
@@ -57,6 +57,7 @@ impl CommitBucket {
         config: &Config,
     ) -> Result<CommitBucket> {
         let g_commits = repo.get_commits()?;
+
         let mut commits: Vec<CommitInfo> = vec![];
         let mut types: HashMap<String, u32> = HashMap::new();
         let mut scopes: HashMap<String, u32> = HashMap::new();
@@ -82,7 +83,7 @@ impl CommitBucket {
                 scopes.insert(parsed_message_info.optional_scope.clone().unwrap(), tmp);
             }
 
-            let commit_info = CommitInfo {
+            let commit_info: CommitInfo = CommitInfo {
                 author: Author {
                     name: g_commit.author().name().unwrap_or("").to_string(),
                     email: g_commit.author().email().unwrap_or("").to_string(),
@@ -91,6 +92,7 @@ impl CommitBucket {
                 type_: parsed_message_info.type_,
                 scope: parsed_message_info.optional_scope.unwrap_or("".to_string()),
                 stats: Self::get_stats(&repo, &g_commit),
+                time: g_commit.time(),
             };
 
             commits.push(commit_info);
@@ -100,21 +102,21 @@ impl CommitBucket {
             .into_iter()
             .filter(|info| {
                 config
-                    .filter_author
+                    .filter_authors
                     .as_ref()
-                    .map_or(true, |author| author == &info.author.name)
+                    .map_or(true, |author| author.contains(&info.author.name))
             })
             .filter(|info| {
                 config
-                    .filter_scope
+                    .filter_scopes
                     .as_ref()
-                    .map_or(true, |scope| scope == &info.scope)
+                    .map_or(true, |scope| scope.contains(&info.scope))
             })
             .filter(|info| {
                 config
-                    .filter_type
+                    .filter_types
                     .as_ref()
-                    .map_or(true, |type_| type_ == &info.type_)
+                    .map_or(true, |type_| type_.contains(&info.type_))
             })
             .filter(|info| {
                 config
@@ -233,7 +235,7 @@ mod tests {
         let bucket = CommitBucket::build(
             &repo,
             example_commit_message.as_str(),
-            &mock_config(Some(vec!["", "--author", "erencam"])),
+            &mock_config(Some(vec!["", "--authors", "erencam"])),
         )
         .expect("Failed to build bucket");
 
@@ -251,7 +253,13 @@ mod tests {
             &repo,
             example_commit_message.as_str(),
             &mock_config(Some(vec![
-                "", "--author", "erencam", "--type", "feat", "-s", "main",
+                "",
+                "--authors",
+                "erencam",
+                "--types",
+                "feat",
+                "-s",
+                "main",
             ])),
         )
         .expect("Failed to build bucket");
