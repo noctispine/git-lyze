@@ -50,6 +50,9 @@ impl Reporter for Stdout {
 
         println!("{}: {}", "scopes".cyan().bold(), scopes);
         println!("{}: {}", "types".cyan().bold(), types);
+        for i in commit_bucket.commits.iter() {
+            println!("{}: {}", i.summary, i.time);
+        }
     }
 }
 

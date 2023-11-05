@@ -13,8 +13,8 @@
 	- [x] author(s)
 	- [x] scope(s)
 	- [x] type(s)
-	- [ ] start_date
-	- [ ] end_date
+	- [x] start_date
+	- [x] end_date
 	- [ ] ownership
 - [ ] Ownership
 - [ ] Merge config file and args instead overriding

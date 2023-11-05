@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use git2::{Commit, Delta, DiffStatsFormat, Time};
+use chrono::DateTime;
+use git2::{Commit, Delta, DiffStatsFormat};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +42,7 @@ pub struct CommitInfo {
     pub type_: String,
     pub scope: String,
     pub stats: Result<Stats>,
-    pub time: Time,
+    pub time: i64,
 }
 pub struct CommitBucket {
     pub commits: Vec<CommitInfo>,
@@ -78,7 +79,7 @@ impl CommitBucket {
                 type_: parsed_message_info.type_,
                 scope: parsed_message_info.optional_scope.unwrap_or("".to_string()),
                 stats: Self::get_stats(&repo, &g_commit),
-                time: g_commit.time(),
+                time: g_commit.time().seconds(),
             };
 
             commits.push(commit_info);
@@ -125,6 +126,26 @@ impl CommitBucket {
                         }
                         false
                     })
+            })
+            .filter(|info| {
+                config.start_date.as_ref().map_or(true, |start_date| {
+                    DateTime::parse_from_str(&start_date, &config.date_format).map_or(
+                        true,
+                        |parsed_start_date| {
+                            return info.time.cmp(&parsed_start_date.timestamp()).is_gt();
+                        },
+                    )
+                })
+            })
+            .filter(|info| {
+                config.end_date.as_ref().map_or(true, |end_date| {
+                    DateTime::parse_from_str(&end_date, &config.date_format).map_or(
+                        true,
+                        |parsed_end_date| {
+                            return info.time.cmp(&parsed_end_date.timestamp()).is_lt();
+                        },
+                    )
+                })
             })
             .collect();
 

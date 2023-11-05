@@ -42,4 +42,16 @@ pub struct Config {
     /// Filter by type e.g., "feat"
     #[arg(short = 'y', long = "types", value_parser, num_args=1..)]
     pub filter_types: Option<Vec<String>>,
+
+    /// Filter by date
+    #[arg(long)]
+    pub start_date: Option<String>,
+
+    /// Filter by date
+    #[arg(long)]
+    pub end_date: Option<String>,
+
+    /// Date format
+    #[arg(long, default_value = "%a %b %e %T %Y %z")]
+    pub date_format: String,
 }
