@@ -16,5 +16,8 @@
 	- [x] start_date
 	- [x] end_date
 	- [ ] ownership
+- [ ] Add multiple date type parsers (supporting only date + time + timezone for now)
+	- [ ] date + time
+	- [ ] date
 - [ ] Ownership
 - [ ] Merge config file and args instead overriding
