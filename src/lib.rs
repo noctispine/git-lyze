@@ -5,10 +5,12 @@ pub mod customerror;
 pub mod repo;
 pub mod reporters;
 pub mod test_utils;
+pub mod utils;
 
 use std::{env::current_dir, fs::File, path::Path};
 
 use clap::Parser;
+use reporters::{BaseReporter, Stdout};
 
 use crate::{commit::CommitBucket, config::Config, repo::Repo};
 
@@ -34,13 +36,7 @@ pub fn run() {
 
     let commit_bucket = CommitBucket::build(&repo, &config.convention_style, &config).unwrap();
 
-    for cm in commit_bucket.commits {
-        println!("{}: {}", cm.author.name, cm.summary);
-        if cm.stats.is_err() {
-            continue;
-        }
-        for file in cm.stats.unwrap().file_stat_infos {
-            println!("{}: {} {}\n", file.path, file.inserted, file.deleted)
-        }
-    }
+    let base_reporter = BaseReporter::new(&config, &commit_bucket, Box::new(Stdout {}));
+
+    base_reporter.output();
 }

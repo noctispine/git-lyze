@@ -1,14 +1,12 @@
-use std::collections::HashMap;
-
-use chrono::DateTime;
-use git2::{Commit, Delta, DiffStatsFormat};
-use regex::Regex;
-use serde::{Deserialize, Serialize};
-
 use crate::config::Config;
 use crate::convention::ConventionBuilder;
 use crate::customerror::{Error, Result};
 use crate::repo::Repo;
+use crate::utils::parse_date;
+use git2::{Commit, Delta, DiffStatsFormat};
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub struct Author {
@@ -85,69 +83,68 @@ impl CommitBucket {
             commits.push(commit_info);
         }
 
-        let commits: Vec<CommitInfo> = commits
-            .into_iter()
-            .filter(|info| {
-                config
-                    .filter_authors
-                    .as_ref()
-                    .map_or(true, |author| author.contains(&info.author.name))
-            })
-            .filter(|info| {
-                config
-                    .filter_scopes
-                    .as_ref()
-                    .map_or(true, |scope| scope.contains(&info.scope))
-            })
-            .filter(|info| {
-                config
-                    .filter_types
-                    .as_ref()
-                    .map_or(true, |type_| type_.contains(&info.type_))
-            })
-            .filter(|info| {
-                config
-                    .filter_filenames
-                    .as_ref()
-                    .map_or(true, |filename_patterns| {
-                        for pattern in filename_patterns {
-                            let pattern = format!(r"{}", pattern);
-                            let regex = Regex::new(&pattern).unwrap();
-                            match &info.stats {
-                                Ok(stats) => {
-                                    for file_stat_info in &stats.file_stat_infos {
-                                        if regex.is_match(&file_stat_info.path) {
-                                            return true;
+        let commits: Vec<CommitInfo> =
+            commits
+                .into_iter()
+                .filter(|info| {
+                    config
+                        .filter_authors
+                        .as_ref()
+                        .map_or(true, |author| author.contains(&info.author.name))
+                })
+                .filter(|info| {
+                    config
+                        .filter_scopes
+                        .as_ref()
+                        .map_or(true, |scope| scope.contains(&info.scope))
+                })
+                .filter(|info| {
+                    config
+                        .filter_types
+                        .as_ref()
+                        .map_or(true, |type_| type_.contains(&info.type_))
+                })
+                .filter(|info| {
+                    config
+                        .filter_filenames
+                        .as_ref()
+                        .map_or(true, |filename_patterns| {
+                            for pattern in filename_patterns {
+                                let pattern = format!(r"{}", pattern);
+                                let regex = Regex::new(&pattern).unwrap();
+                                match &info.stats {
+                                    Ok(stats) => {
+                                        for file_stat_info in &stats.file_stat_infos {
+                                            if regex.is_match(&file_stat_info.path) {
+                                                return true;
+                                            }
                                         }
                                     }
+                                    Err(_) => return false,
                                 }
-                                Err(_) => return false,
                             }
-                        }
-                        false
+                            false
+                        })
+                })
+                .filter(|info| {
+                    config.start_date.as_ref().map_or(true, |start_date| {
+                        parse_date(&start_date, &config.date_format, &config.date_format_type)
+                            .map_or(true, |parsed_start_date| {
+                                return info.time.cmp(&parsed_start_date).is_gt();
+                            })
                     })
-            })
-            .filter(|info| {
-                config.start_date.as_ref().map_or(true, |start_date| {
-                    DateTime::parse_from_str(&start_date, &config.date_format).map_or(
-                        true,
-                        |parsed_start_date| {
-                            return info.time.cmp(&parsed_start_date.timestamp()).is_gt();
-                        },
-                    )
                 })
-            })
-            .filter(|info| {
-                config.end_date.as_ref().map_or(true, |end_date| {
-                    DateTime::parse_from_str(&end_date, &config.date_format).map_or(
-                        true,
-                        |parsed_end_date| {
-                            return info.time.cmp(&parsed_end_date.timestamp()).is_lt();
-                        },
-                    )
+                .filter(|info| {
+                    config.end_date.as_ref().map_or(true, |end_date| {
+                        parse_date(&end_date, &config.date_format, &config.date_format_type).map_or(
+                            true,
+                            |parsed_end_date| {
+                                return info.time.cmp(&parsed_end_date).is_lt();
+                            },
+                        )
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
         let total = commits.len();
 

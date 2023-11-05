@@ -1,7 +1,6 @@
-use std::path;
-
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
+use std::path;
 
 #[derive(Serialize, Deserialize, Debug, Parser)]
 #[serde(rename_all = "camelCase")]
@@ -54,4 +53,24 @@ pub struct Config {
     /// Date format
     #[arg(long, default_value = "%a %b %e %T %Y %z")]
     pub date_format: String,
+
+    #[arg(long, value_enum, default_value_t = DateFormatType::DateTimeAndTimezone)]
+    pub date_format_type: DateFormatType,
+
+    #[clap(skip)]
+    pub ownership_config: Option<OwnershipConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OwnershipConfig {
+    pub name: String,
+    pub pattern: String,
+    pub members: Vec<String>,
+}
+
+#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]
+pub enum DateFormatType {
+    DateOnly,
+    DateAndTime,
+    DateTimeAndTimezone,
 }
