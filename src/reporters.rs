@@ -1,39 +1,77 @@
-use crate::{commit::CommitBucket, config::Config};
+use std::{cmp, collections::HashMap};
+
+use crate::{
+    commit::{CommitBucket, FileStatInfo},
+    config::{Config, SortType},
+};
 use colored::Colorize;
 
-pub trait Reporter {
-    fn output(&self, commit_bucket: &CommitBucket, config: &Config);
+pub trait Reporter<'a> {
+    fn output(
+        &self,
+        config: &Config,
+        commit_bucket: &CommitBucket,
+        file_summs: &Vec<&'a FileStatInfo>,
+    );
     // fn new() -> Self;
 }
 
 pub struct BaseReporter<'a> {
     config: &'a Config,
     commit_bucket: &'a CommitBucket,
-    reporter: Box<dyn Reporter>,
+    reporter: Box<dyn Reporter<'a>>,
+    file_summs: Vec<&'a FileStatInfo>,
 }
 
 impl<'a> BaseReporter<'a> {
     pub fn new(
         config: &'a Config,
         commit_bucket: &'a CommitBucket,
-        reporter: Box<dyn Reporter>,
+        reporter: Box<(dyn Reporter<'a> + 'static)>,
     ) -> BaseReporter<'a> {
         BaseReporter {
             config,
             reporter: reporter,
             commit_bucket,
+            file_summs: Self::map_file_summs(config, &commit_bucket.file_summs),
         }
     }
 
     pub fn output(&self) {
-        self.reporter.output(&self.commit_bucket, &self.config)
+        self.reporter
+            .output(&self.config, &self.commit_bucket, &self.file_summs)
+    }
+
+    fn map_file_summs(
+        conf: &Config,
+        summ_map: &'a HashMap<String, FileStatInfo>,
+    ) -> Vec<&'a FileStatInfo> {
+        let mut summ = summ_map.values().collect::<Vec<&FileStatInfo>>();
+
+        summ.sort_by(|a, b| match conf.sort_files {
+            SortType::Asc => a.total_changes.abs().cmp(&b.total_changes.abs()),
+            SortType::Desc => b.total_changes.abs().cmp(&a.total_changes.abs()),
+        });
+
+        let boundry = match conf.file_count.cmp(&summ.len()) {
+            cmp::Ordering::Greater => summ.len(),
+            cmp::Ordering::Less => conf.file_count,
+            _ => summ.len(),
+        };
+
+        summ[..boundry].to_vec()
     }
 }
 
 pub struct Stdout {}
 
-impl Reporter for Stdout {
-    fn output(&self, commit_bucket: &CommitBucket, config: &Config) {
+impl<'a> Reporter<'a> for Stdout {
+    fn output(
+        &self,
+        config: &Config,
+        commit_bucket: &CommitBucket,
+        file_summs: &Vec<&'a FileStatInfo>,
+    ) {
         let scopes = commit_bucket
             .scopes
             .keys()
@@ -51,10 +89,13 @@ impl Reporter for Stdout {
         println!("{}: {}", "scopes".cyan().bold(), scopes);
         println!("{}: {}", "types".cyan().bold(), types);
 
-        for file_sum in commit_bucket.file_summs.iter() {
+        for file_sum in file_summs.iter() {
             println!(
-                "{}:\t+{}\t-{}\ttotal:{}",
-                file_sum.0, file_sum.1.inserted, file_sum.1.deleted, file_sum.1.total_changes
+                "{}: {} {} | total: {}",
+                file_sum.path,
+                format!("+{}", file_sum.inserted).green(),
+                format!("-{}", file_sum.deleted).red(),
+                file_sum.total_changes
             );
         }
     }

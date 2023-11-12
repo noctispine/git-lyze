@@ -57,6 +57,14 @@ pub struct Config {
     #[arg(long, value_enum, default_value_t = DateFormatType::DateTimeAndTimezone)]
     pub date_format_type: DateFormatType,
 
+    /// File Summary, show N files
+    #[arg(long, default_value_t = 10)]
+    pub file_count: usize,
+
+    /// File Summary, sort files by
+    #[arg(long, value_enum, default_value_t = SortType::Desc)]
+    pub sort_files: SortType,
+
     #[clap(skip)]
     pub ownerships: Option<Vec<OwnershipConfig>>,
 }
@@ -74,4 +82,10 @@ pub enum DateFormatType {
     DateOnly,
     DateAndTime,
     DateTimeAndTimezone,
+}
+
+#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]
+pub enum SortType {
+    Asc,
+    Desc,
 }
