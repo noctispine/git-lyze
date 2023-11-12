@@ -7,20 +7,19 @@ use crate::{
 use colored::Colorize;
 
 pub trait Reporter<'a> {
-    fn output(
-        &self,
-        config: &Config,
-        commit_bucket: &CommitBucket,
-        file_summs: &Vec<&'a FileStatInfo>,
-    );
+    fn output(&self, config: &Config, report_info: &ReportStructure<'a>);
     // fn new() -> Self;
+}
+
+pub struct ReportStructure<'a> {
+    commit_bucket: &'a CommitBucket,
+    file_summs: Vec<&'a FileStatInfo>,
 }
 
 pub struct BaseReporter<'a> {
     config: &'a Config,
-    commit_bucket: &'a CommitBucket,
     reporter: Box<dyn Reporter<'a>>,
-    file_summs: Vec<&'a FileStatInfo>,
+    report_info: ReportStructure<'a>,
 }
 
 impl<'a> BaseReporter<'a> {
@@ -29,17 +28,20 @@ impl<'a> BaseReporter<'a> {
         commit_bucket: &'a CommitBucket,
         reporter: Box<(dyn Reporter<'a> + 'static)>,
     ) -> BaseReporter<'a> {
-        BaseReporter {
-            config,
-            reporter: reporter,
+        let report_info = ReportStructure {
             commit_bucket,
             file_summs: Self::map_file_summs(config, &commit_bucket.file_summs),
+        };
+
+        BaseReporter {
+            config,
+            reporter,
+            report_info,
         }
     }
 
     pub fn output(&self) {
-        self.reporter
-            .output(&self.config, &self.commit_bucket, &self.file_summs)
+        self.reporter.output(&self.config, &self.report_info);
     }
 
     fn map_file_summs(
@@ -66,20 +68,17 @@ impl<'a> BaseReporter<'a> {
 pub struct Stdout {}
 
 impl<'a> Reporter<'a> for Stdout {
-    fn output(
-        &self,
-        config: &Config,
-        commit_bucket: &CommitBucket,
-        file_summs: &Vec<&'a FileStatInfo>,
-    ) {
-        let scopes = commit_bucket
+    fn output(&self, config: &Config, report_info: &ReportStructure<'a>) {
+        let scopes = report_info
+            .commit_bucket
             .scopes
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<_>>()
             .join(", ");
 
-        let types = commit_bucket
+        let types = report_info
+            .commit_bucket
             .types
             .keys()
             .map(|s| s.as_str())
@@ -89,13 +88,15 @@ impl<'a> Reporter<'a> for Stdout {
         println!("{}: {}", "scopes".cyan().bold(), scopes);
         println!("{}: {}", "types".cyan().bold(), types);
 
-        for file_sum in file_summs.iter() {
+        for file_sum in report_info.file_summs.iter() {
             println!(
-                "{}: {} {} | total: {}",
-                file_sum.path,
+                "{:<20}{:<10}{:<10}{:<10}",
+                format!("{}:", file_sum.path),
                 format!("+{}", file_sum.inserted).green(),
                 format!("-{}", file_sum.deleted).red(),
-                file_sum.total_changes
+                format!("{}", file_sum.total_changes)
+                    .italic()
+                    .bright_yellow()
             );
         }
     }
