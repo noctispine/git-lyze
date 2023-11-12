@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, OwnershipConfig};
 use crate::convention::ConventionBuilder;
 use crate::customerror::{Error, Result};
 use crate::repo::Repo;
@@ -46,6 +46,11 @@ pub struct CommitBucket {
     pub total: usize,
 }
 
+pub struct Ownerships<'a> {
+    pub info: &'a OwnershipConfig,
+    pub cm_bucket: CommitBucket,
+}
+
 impl CommitBucket {
     pub fn build(
         repo: &Repo,
@@ -55,8 +60,6 @@ impl CommitBucket {
         let g_commits = repo.get_commits()?;
 
         let mut commits: Vec<CommitInfo> = vec![];
-        let mut types: HashMap<String, u32> = HashMap::new();
-        let mut scopes: HashMap<String, u32> = HashMap::new();
 
         let convention_builder = ConventionBuilder::build(example_commit_message);
 
@@ -143,55 +146,8 @@ impl CommitBucket {
                 })
                 .collect();
 
-        let total = commits.len();
-        let mut file_summs: HashMap<String, FileStatInfo> = HashMap::new();
-
-        for commit in commits.iter() {
-            if !commit.type_.is_empty() {
-                let c_commit_type = commit.type_.clone();
-                let new_count = types.get(&c_commit_type).unwrap_or(&0) + 1;
-                types.insert(c_commit_type, new_count);
-            }
-
-            if !commit.scope.is_empty() {
-                let c_scope = commit.scope.clone();
-                let new_count = scopes.get(&c_scope).unwrap_or(&0) + 1;
-                scopes.insert(c_scope, new_count);
-            }
-
-            match &commit.stats {
-                Ok(com_stat) => {
-                    for stat in com_stat.file_stat_infos.iter() {
-                        let prev_stat = file_summs.get(&stat.path);
-                        match prev_stat {
-                            Some(prev_stat) => {
-                                file_summs.insert(
-                                    prev_stat.path.clone(),
-                                    FileStatInfo {
-                                        path: prev_stat.path.clone(),
-                                        inserted: prev_stat.inserted + stat.inserted,
-                                        deleted: prev_stat.deleted + stat.deleted,
-                                        total_changes: prev_stat.total_changes + stat.total_changes,
-                                    },
-                                );
-                            }
-                            None => {
-                                file_summs.insert(
-                                    stat.path.clone(),
-                                    FileStatInfo {
-                                        path: stat.path.clone(),
-                                        inserted: stat.inserted,
-                                        deleted: stat.deleted,
-                                        total_changes: stat.total_changes,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                }
-                Err(_) => {}
-            };
-        }
+        let (total, types, scopes, file_summs) =
+            Self::collect_bucket_info(commits.iter().collect());
 
         Ok(CommitBucket {
             commits,
@@ -243,6 +199,101 @@ impl CommitBucket {
             insertions: diff_total.insertions(),
             total_changes: diff_total.deletions() + diff_total.insertions(),
         })
+    }
+
+    // TODO: Refactor this func's return
+    fn collect_bucket_info(
+        commits: Vec<&CommitInfo>,
+    ) -> (
+        usize,
+        HashMap<String, u32>,
+        HashMap<String, u32>,
+        HashMap<String, FileStatInfo>,
+    ) {
+        let mut file_summs: HashMap<String, FileStatInfo> = HashMap::new();
+        let mut types: HashMap<String, u32> = HashMap::new();
+        let mut scopes: HashMap<String, u32> = HashMap::new();
+        let total = commits.len();
+
+        for commit in commits.iter() {
+            if !commit.type_.is_empty() {
+                let c_commit_type = commit.type_.clone();
+                let new_count = types.get(&c_commit_type).unwrap_or(&0) + 1;
+                types.insert(c_commit_type, new_count);
+            }
+
+            if !commit.scope.is_empty() {
+                let c_scope = commit.scope.clone();
+                let new_count = scopes.get(&c_scope).unwrap_or(&0) + 1;
+                scopes.insert(c_scope, new_count);
+            }
+
+            match &commit.stats {
+                Ok(com_stat) => {
+                    for stat in com_stat.file_stat_infos.iter() {
+                        let prev_stat = file_summs.get(&stat.path);
+                        match prev_stat {
+                            Some(prev_stat) => {
+                                file_summs.insert(
+                                    prev_stat.path.clone(),
+                                    FileStatInfo {
+                                        path: prev_stat.path.clone(),
+                                        inserted: prev_stat.inserted + stat.inserted,
+                                        deleted: prev_stat.deleted + stat.deleted,
+                                        total_changes: prev_stat.total_changes + stat.total_changes,
+                                    },
+                                );
+                            }
+                            None => {
+                                file_summs.insert(
+                                    stat.path.clone(),
+                                    FileStatInfo {
+                                        path: stat.path.clone(),
+                                        inserted: stat.inserted,
+                                        deleted: stat.deleted,
+                                        total_changes: stat.total_changes,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(_) => {}
+            };
+        }
+
+        (total, types, scopes, file_summs)
+    }
+
+    fn get_ownerships(&self, configs: &Vec<OwnershipConfig>) -> Vec<Ownerships> {
+        let mut ownerhips: Vec<Ownerships> = vec![];
+        for owner_ship_config in configs.iter() {
+            let mut commits: Vec<&CommitInfo> = vec![];
+            for cm in self.commits.iter() {
+                let pattern = format!(r"{}", owner_ship_config.pattern);
+                let regex = Regex::new(&pattern).unwrap();
+
+                if !regex.is_match(&cm.summary) {
+                    continue;
+                }
+
+                commits.push(cm);
+            }
+
+            let (total, types, scopes, file_summs) = Self::collect_bucket_info(commits);
+            // ownerhips.push(Ownerships {
+            //     info: owner_ship_config,
+            //     cm_bucket: CommitBucket {
+            //         commits: commits.iter().cloned(),
+            //         types,
+            //         scopes,
+            //         file_summs,
+            //         total,
+            //     },
+            // })
+        }
+
+        ownerhips
     }
 }
 
