@@ -50,8 +50,12 @@ impl Reporter for Stdout {
 
         println!("{}: {}", "scopes".cyan().bold(), scopes);
         println!("{}: {}", "types".cyan().bold(), types);
-        for i in commit_bucket.commits.iter() {
-            println!("{}: {}", i.summary, i.time);
+
+        for file_sum in commit_bucket.file_summs.iter() {
+            println!(
+                "{}:\t+{}\t-{}\ttotal:{}",
+                file_sum.0, file_sum.1.inserted, file_sum.1.deleted, file_sum.1.total_changes
+            );
         }
     }
 }

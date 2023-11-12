@@ -42,11 +42,11 @@ pub struct Config {
     #[arg(short = 'y', long = "types", value_parser, num_args=1..)]
     pub filter_types: Option<Vec<String>>,
 
-    /// Filter by date
+    /// Filter by start_date
     #[arg(long)]
     pub start_date: Option<String>,
 
-    /// Filter by date
+    /// Filter by end_date
     #[arg(long)]
     pub end_date: Option<String>,
 
@@ -58,14 +58,15 @@ pub struct Config {
     pub date_format_type: DateFormatType,
 
     #[clap(skip)]
-    pub ownership_config: Option<OwnershipConfig>,
+    pub ownerships: Option<Vec<OwnershipConfig>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OwnershipConfig {
     pub name: String,
     pub pattern: String,
-    pub members: Vec<String>,
+    pub authors: Vec<String>,
 }
 
 #[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]

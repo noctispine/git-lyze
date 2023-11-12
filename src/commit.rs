@@ -3,10 +3,11 @@ use crate::convention::ConventionBuilder;
 use crate::customerror::{Error, Result};
 use crate::repo::Repo;
 use crate::utils::parse_date;
-use git2::{Commit, Delta, DiffStatsFormat};
+use git2::{Commit, DiffStatsFormat};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::vec;
 
 #[derive(Serialize, Deserialize)]
 pub struct Author {
@@ -19,19 +20,14 @@ pub struct Stats {
     pub changed_files_count: usize,
     pub insertions: usize,
     pub deletions: usize,
+    pub total_changes: usize,
 }
 
 pub struct FileStatInfo {
     pub path: String,
-    pub inserted: String,
-    pub deleted: String,
-}
-
-pub struct FileStats {
-    pub new_file: FileStatInfo,
-    pub old_file: FileStatInfo,
-    pub status: Delta,
-    pub n_files: usize,
+    pub inserted: usize,
+    pub deleted: usize,
+    pub total_changes: i64,
 }
 
 pub struct CommitInfo {
@@ -46,6 +42,7 @@ pub struct CommitBucket {
     pub commits: Vec<CommitInfo>,
     pub types: HashMap<String, u32>,
     pub scopes: HashMap<String, u32>,
+    pub file_summs: HashMap<String, FileStatInfo>,
     pub total: usize,
 }
 
@@ -147,6 +144,7 @@ impl CommitBucket {
                 .collect();
 
         let total = commits.len();
+        let mut file_summs: HashMap<String, FileStatInfo> = HashMap::new();
 
         for commit in commits.iter() {
             if !commit.type_.is_empty() {
@@ -160,6 +158,39 @@ impl CommitBucket {
                 let new_count = scopes.get(&c_scope).unwrap_or(&0) + 1;
                 scopes.insert(c_scope, new_count);
             }
+
+            match &commit.stats {
+                Ok(com_stat) => {
+                    for stat in com_stat.file_stat_infos.iter() {
+                        let prev_stat = file_summs.get(&stat.path);
+                        match prev_stat {
+                            Some(prev_stat) => {
+                                file_summs.insert(
+                                    prev_stat.path.clone(),
+                                    FileStatInfo {
+                                        path: prev_stat.path.clone(),
+                                        inserted: prev_stat.inserted + stat.inserted,
+                                        deleted: prev_stat.deleted + stat.deleted,
+                                        total_changes: prev_stat.total_changes + stat.total_changes,
+                                    },
+                                );
+                            }
+                            None => {
+                                file_summs.insert(
+                                    stat.path.clone(),
+                                    FileStatInfo {
+                                        path: stat.path.clone(),
+                                        inserted: stat.inserted,
+                                        deleted: stat.deleted,
+                                        total_changes: stat.total_changes,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(_) => {}
+            };
         }
 
         Ok(CommitBucket {
@@ -167,6 +198,7 @@ impl CommitBucket {
             total,
             types,
             scopes,
+            file_summs,
         })
     }
 
@@ -192,10 +224,14 @@ impl CommitBucket {
                     .collect::<Vec<_>>()
                     .join(" ");
                 let normalized_line = normalized_line.split(" ").collect::<Vec<_>>();
+                let deleted = normalized_line[1].parse::<usize>().unwrap_or(0);
+                let inserted = normalized_line[0].parse::<usize>().unwrap_or(0);
+
                 FileStatInfo {
                     path: normalized_line[2].to_string(),
-                    deleted: normalized_line[1].to_string(),
-                    inserted: normalized_line[0].to_string(),
+                    inserted,
+                    deleted,
+                    total_changes: inserted as i64 - deleted as i64,
                 }
             })
             .collect::<Vec<FileStatInfo>>();
@@ -205,6 +241,7 @@ impl CommitBucket {
             changed_files_count: diff_total.files_changed(),
             deletions: diff_total.deletions(),
             insertions: diff_total.insertions(),
+            total_changes: diff_total.deletions() + diff_total.insertions(),
         })
     }
 }
