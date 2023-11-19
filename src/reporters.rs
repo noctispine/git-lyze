@@ -30,7 +30,7 @@ impl<'a> BaseReporter<'a> {
     ) -> BaseReporter<'a> {
         let report_info = ReportStructure {
             commit_bucket,
-            file_summs: Self::map_file_summs(config, &commit_bucket.file_summs),
+            file_summs: Self::map_file_summs(config, &commit_bucket.info.file_summs),
         };
 
         BaseReporter {
@@ -71,6 +71,7 @@ impl<'a> Reporter<'a> for Stdout {
     fn output(&self, config: &Config, report_info: &ReportStructure<'a>) {
         let scopes = report_info
             .commit_bucket
+            .info
             .scopes
             .keys()
             .map(|s| s.as_str())
@@ -79,6 +80,7 @@ impl<'a> Reporter<'a> for Stdout {
 
         let types = report_info
             .commit_bucket
+            .info
             .types
             .keys()
             .map(|s| s.as_str())

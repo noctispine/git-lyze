@@ -2,6 +2,7 @@ pub mod commit;
 pub mod config;
 pub mod convention;
 pub mod customerror;
+pub mod ownerships;
 pub mod repo;
 pub mod reporters;
 pub mod test_utils;

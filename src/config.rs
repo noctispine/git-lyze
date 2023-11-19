@@ -73,7 +73,7 @@ pub struct Config {
 #[serde(rename_all = "camelCase")]
 pub struct OwnershipConfig {
     pub name: String,
-    pub pattern: String,
+    pub patterns: Vec<String>,
     pub authors: Vec<String>,
 }
 

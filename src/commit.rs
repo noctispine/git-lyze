@@ -38,8 +38,13 @@ pub struct CommitInfo {
     pub stats: Result<Stats>,
     pub time: i64,
 }
+
 pub struct CommitBucket {
     pub commits: Vec<CommitInfo>,
+    pub info: BucketInfo,
+}
+
+pub struct BucketInfo {
     pub types: HashMap<String, u32>,
     pub scopes: HashMap<String, u32>,
     pub file_summs: HashMap<String, FileStatInfo>,
@@ -146,15 +151,11 @@ impl CommitBucket {
                 })
                 .collect();
 
-        let (total, types, scopes, file_summs) =
-            Self::collect_bucket_info(commits.iter().collect());
+        let bucket_info = Self::collect_bucket_info(commits.iter().collect());
 
         Ok(CommitBucket {
             commits,
-            total,
-            types,
-            scopes,
-            file_summs,
+            info: bucket_info,
         })
     }
 
@@ -202,14 +203,7 @@ impl CommitBucket {
     }
 
     // TODO: Refactor this func's return
-    fn collect_bucket_info(
-        commits: Vec<&CommitInfo>,
-    ) -> (
-        usize,
-        HashMap<String, u32>,
-        HashMap<String, u32>,
-        HashMap<String, FileStatInfo>,
-    ) {
+    pub fn collect_bucket_info(commits: Vec<&CommitInfo>) -> (BucketInfo) {
         let mut file_summs: HashMap<String, FileStatInfo> = HashMap::new();
         let mut types: HashMap<String, u32> = HashMap::new();
         let mut scopes: HashMap<String, u32> = HashMap::new();
@@ -262,38 +256,12 @@ impl CommitBucket {
             };
         }
 
-        (total, types, scopes, file_summs)
-    }
-
-    fn get_ownerships(&self, configs: &Vec<OwnershipConfig>) -> Vec<Ownerships> {
-        let mut ownerhips: Vec<Ownerships> = vec![];
-        for owner_ship_config in configs.iter() {
-            let mut commits: Vec<&CommitInfo> = vec![];
-            for cm in self.commits.iter() {
-                let pattern = format!(r"{}", owner_ship_config.pattern);
-                let regex = Regex::new(&pattern).unwrap();
-
-                if !regex.is_match(&cm.summary) {
-                    continue;
-                }
-
-                commits.push(cm);
-            }
-
-            let (total, types, scopes, file_summs) = Self::collect_bucket_info(commits);
-            // ownerhips.push(Ownerships {
-            //     info: owner_ship_config,
-            //     cm_bucket: CommitBucket {
-            //         commits: commits.iter().cloned(),
-            //         types,
-            //         scopes,
-            //         file_summs,
-            //         total,
-            //     },
-            // })
+        BucketInfo {
+            types,
+            scopes,
+            file_summs,
+            total,
         }
-
-        ownerhips
     }
 }
 
@@ -315,23 +283,23 @@ mod tests {
                 .expect("Failed to build commit bucket");
 
         assert_eq!(bucket.commits.len(), 5);
-        assert_eq!(bucket.types.len(), 2);
-        assert!(bucket.types.contains_key("feat") && bucket.types.contains_key("test"));
+        assert_eq!(bucket.info.types.len(), 2);
+        assert!(bucket.info.types.contains_key("feat") && bucket.info.types.contains_key("test"));
 
-        let feat_val = bucket.types.get("feat");
+        let feat_val = bucket.info.types.get("feat");
         assert!(feat_val.is_some());
         assert_eq!(feat_val.unwrap(), &2);
 
-        let main_val = bucket.scopes.get("main");
+        let main_val = bucket.info.scopes.get("main");
         assert!(main_val.is_some());
         assert_eq!(main_val.unwrap(), &2);
-        assert_eq!(bucket.scopes.len(), 3);
+        assert_eq!(bucket.info.scopes.len(), 3);
         assert!(
-            bucket.scopes.contains_key("main")
-                && bucket.scopes.contains_key("commit")
-                && bucket.scopes.contains_key("repo")
+            bucket.info.scopes.contains_key("main")
+                && bucket.info.scopes.contains_key("commit")
+                && bucket.info.scopes.contains_key("repo")
         );
-        assert_eq!(bucket.total, 5);
+        assert_eq!(bucket.info.total, 5);
     }
 
     #[test]
@@ -348,7 +316,7 @@ mod tests {
         for commit in bucket.commits {
             assert_eq!(commit.author.name, "erencam");
         }
-        assert_eq!(bucket.total, 4);
+        assert_eq!(bucket.info.total, 4);
     }
 
     #[test]
@@ -370,7 +338,7 @@ mod tests {
         )
         .expect("Failed to build bucket");
 
-        assert_eq!(bucket.total, 1);
+        assert_eq!(bucket.info.total, 1);
         assert_eq!(bucket.commits[0].author.name, "erencam");
         assert_eq!(bucket.commits[0].type_, "feat");
         assert_eq!(bucket.commits[0].scope, "main");
