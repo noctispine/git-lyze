@@ -15,6 +15,7 @@ pub struct Author {
     pub email: String,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Stats {
     pub file_stat_infos: Vec<FileStatInfo>,
     pub changed_files_count: usize,
@@ -22,7 +23,7 @@ pub struct Stats {
     pub deletions: usize,
     pub total_changes: usize,
 }
-
+#[derive(Serialize, Deserialize)]
 pub struct FileStatInfo {
     pub path: String,
     pub inserted: usize,
