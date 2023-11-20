@@ -1,6 +1,13 @@
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::path;
+use crate::defaults::{
+    convention_style,
+    date_format,
+    date_format_type,
+    file_count,
+    sort_files
+};
 
 #[derive(Serialize, Deserialize, Debug, Parser)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +31,7 @@ pub struct Config {
 
     // Convetion style
     #[arg(short = 't', long, default_value = "type(optional_scope): description")]
+    #[serde(default = "convention_style")]
     pub convention_style: String,
 
     // filter by changed file patterns
@@ -52,17 +60,21 @@ pub struct Config {
 
     /// Date format
     #[arg(long, default_value = "%a %b %e %T %Y %z")]
+    #[serde(default = "date_format")]
     pub date_format: String,
 
     #[arg(long, value_enum, default_value_t = DateFormatType::DateTimeAndTimezone)]
+    #[serde(default = "date_format_type")]
     pub date_format_type: DateFormatType,
 
     /// File Summary, show N files
     #[arg(long, default_value_t = 10)]
+    #[serde(default = "file_count")]
     pub file_count: usize,
 
     /// File Summary, sort files by
     #[arg(long, value_enum, default_value_t = SortType::Desc)]
+    #[serde(default = "sort_files")]
     pub sort_files: SortType,
 
     #[clap(skip)]

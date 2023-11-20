@@ -7,6 +7,7 @@ pub mod repo;
 pub mod reporters;
 pub mod test_utils;
 pub mod utils;
+pub mod defaults;
 
 use std::{env::current_dir, fs::File, path::Path};
 
