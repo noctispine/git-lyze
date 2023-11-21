@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::vec;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Author {
     pub name: String,
     pub email: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Stats {
     pub file_stat_infos: Vec<FileStatInfo>,
     pub changed_files_count: usize,
@@ -23,7 +23,7 @@ pub struct Stats {
     pub deletions: usize,
     pub total_changes: usize,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FileStatInfo {
     pub path: String,
     pub inserted: usize,
@@ -31,30 +31,28 @@ pub struct FileStatInfo {
     pub total_changes: i64,
 }
 
+#[derive(Clone)]
 pub struct CommitInfo {
     pub author: Author,
     pub summary: String,
     pub type_: String,
     pub scope: String,
-    pub stats: Result<Stats>,
+    pub stats: Option<Stats>,
     pub time: i64,
 }
 
+#[derive(Clone)]
 pub struct CommitBucket {
     pub commits: Vec<CommitInfo>,
     pub info: BucketInfo,
 }
 
+#[derive(Clone)]
 pub struct BucketInfo {
     pub types: HashMap<String, u32>,
     pub scopes: HashMap<String, u32>,
     pub file_summs: HashMap<String, FileStatInfo>,
     pub total: usize,
-}
-
-pub struct Ownerships<'a> {
-    pub info: &'a OwnershipConfig,
-    pub cm_bucket: CommitBucket,
 }
 
 impl CommitBucket {
@@ -119,14 +117,14 @@ impl CommitBucket {
                                 let pattern = format!(r"{}", pattern);
                                 let regex = Regex::new(&pattern).unwrap();
                                 match &info.stats {
-                                    Ok(stats) => {
+                                    Some(stats) => {
                                         for file_stat_info in &stats.file_stat_infos {
                                             if regex.is_match(&file_stat_info.path) {
                                                 return true;
                                             }
                                         }
                                     }
-                                    Err(_) => return false,
+                                    None => return false,
                                 }
                             }
                             false
@@ -152,7 +150,7 @@ impl CommitBucket {
                 })
                 .collect();
 
-        let bucket_info = Self::collect_bucket_info(commits.iter().collect());
+        let bucket_info = Self::collect_bucket_info(&commits);
 
         Ok(CommitBucket {
             commits,
@@ -160,15 +158,15 @@ impl CommitBucket {
         })
     }
 
-    fn get_stats(repo: &Repo, commit: &Commit) -> Result<Stats> {
+    fn get_stats(repo: &Repo, commit: &Commit) -> Option<Stats> {
         let raw_diff = match repo.get_diff(commit) {
             Some(diff) => diff,
-            None => return Err(Error::ParseError(format!("git diff"))),
+            None => return None,
         };
 
         let diff_total: git2::DiffStats = match raw_diff.stats() {
             Ok(diff) => diff,
-            Err(_) => return Err(Error::ParseError(format!("git diff stats"))),
+            Err(_) => return None,
         };
 
         let file_stat_infos = diff_total
@@ -194,7 +192,7 @@ impl CommitBucket {
             })
             .collect::<Vec<FileStatInfo>>();
 
-        Ok(Stats {
+        Some(Stats {
             file_stat_infos,
             changed_files_count: diff_total.files_changed(),
             deletions: diff_total.deletions(),
@@ -203,8 +201,7 @@ impl CommitBucket {
         })
     }
 
-    // TODO: Refactor this func's return
-    pub fn collect_bucket_info(commits: Vec<&CommitInfo>) -> (BucketInfo) {
+    pub fn collect_bucket_info(commits: &Vec<CommitInfo>) -> BucketInfo {
         let mut file_summs: HashMap<String, FileStatInfo> = HashMap::new();
         let mut types: HashMap<String, u32> = HashMap::new();
         let mut scopes: HashMap<String, u32> = HashMap::new();
@@ -224,7 +221,7 @@ impl CommitBucket {
             }
 
             match &commit.stats {
-                Ok(com_stat) => {
+                Some(com_stat) => {
                     for stat in com_stat.file_stat_infos.iter() {
                         let prev_stat = file_summs.get(&stat.path);
                         match prev_stat {
@@ -253,7 +250,7 @@ impl CommitBucket {
                         }
                     }
                 }
-                Err(_) => {}
+                None => {}
             };
         }
 
