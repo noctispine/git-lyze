@@ -3,11 +3,14 @@
 - [x] exclude type
 - [ ] reporters
 	- [ ] json
-	- [ ] stdout
-- [ ] Sorts
+	- [x] stdout
+- [ ] Sort commits by
 	- [ ] date
 	- [ ] topological
 	- [ ] -
+- [x] Sort files by total change
+    - [x] Asc
+    - [x] Desc
 - [ ] Filters
 	- [x] filename(s)
 	- [x] author(s)
@@ -15,9 +18,7 @@
 	- [x] type(s)
 	- [x] start_date
 	- [x] end_date
-	- [ ] ownership
-- [ ] Add multiple date type parsers (supporting only date + time + timezone for now)
-	- [ ] date + time
-	- [ ] date
+	- [x] ownership
 - [ ] Ownership
 - [ ] Merge config file and args instead overriding
+
