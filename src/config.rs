@@ -21,6 +21,10 @@ pub struct Config {
     #[arg(long)]
     pub exclude_scope: bool,
 
+    /// Output Type
+    #[arg(short = 'o', long, value_enum, default_value_t = OutputType::Json)]
+    pub output_type: OutputType,
+
     /// Exclude commit type
     #[arg(long)]
     pub exclude_commit_type: bool,
@@ -100,4 +104,9 @@ pub enum DateFormatType {
 pub enum SortType {
     Asc,
     Desc,
+}
+#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]
+pub enum OutputType {
+    Json,
+    Stdout
 }
