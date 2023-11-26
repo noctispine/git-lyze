@@ -1,14 +1,20 @@
-use std::{cmp, collections::HashMap};
-
 use crate::{
     commit::{CommitBucket, FileStatInfo},
-    config::{Config, SortType},
+    config::Config,
+    ownerships::Ownerships,
+    utils::map_file_summs,
 };
 use colored::Colorize;
 
 pub trait Reporter<'a> {
-    fn output(&self, config: &Config, report_info: &ReportStructure<'a>);
-    // fn new() -> Self;
+    fn output(
+        &self,
+        config: &Config,
+        report_info: &ReportStructure<'a>,
+        ownerships_info: &Option<Ownerships<'a>>,
+    );
+    fn output_commit_bucket(&self, bucket: &CommitBucket);
+    fn output_file_summs(&self, file_stat_infos: Vec<&FileStatInfo>);
 }
 
 pub struct ReportStructure<'a> {
@@ -19,7 +25,8 @@ pub struct ReportStructure<'a> {
 pub struct BaseReporter<'a> {
     config: &'a Config,
     reporter: Box<dyn Reporter<'a>>,
-    report_info: ReportStructure<'a>,
+    general_info: ReportStructure<'a>,
+    ownerships_info: Option<Ownerships<'a>>,
 }
 
 impl<'a> BaseReporter<'a> {
@@ -28,49 +35,61 @@ impl<'a> BaseReporter<'a> {
         commit_bucket: &'a CommitBucket,
         reporter: Box<(dyn Reporter<'a> + 'static)>,
     ) -> BaseReporter<'a> {
-        let report_info = ReportStructure {
+        let general_info = ReportStructure {
             commit_bucket,
-            file_summs: Self::map_file_summs(config, &commit_bucket.info.file_summs),
+            file_summs: map_file_summs(config, &commit_bucket.info.file_summs),
+        };
+
+        let ownerships_info = match &config.ownerships {
+            Some(conf) => Some(Ownerships::build(&conf, commit_bucket)),
+            None => None,
         };
 
         BaseReporter {
             config,
             reporter,
-            report_info,
+            general_info,
+            ownerships_info,
         }
     }
 
     pub fn output(&self) {
-        self.reporter.output(&self.config, &self.report_info);
-    }
-
-    fn map_file_summs(
-        conf: &Config,
-        summ_map: &'a HashMap<String, FileStatInfo>,
-    ) -> Vec<&'a FileStatInfo> {
-        let mut summ = summ_map.values().collect::<Vec<&FileStatInfo>>();
-
-        summ.sort_by(|a, b| match conf.sort_files {
-            SortType::Asc => a.total_changes.abs().cmp(&b.total_changes.abs()),
-            SortType::Desc => b.total_changes.abs().cmp(&a.total_changes.abs()),
-        });
-
-        let boundry = match conf.file_count.cmp(&summ.len()) {
-            cmp::Ordering::Greater => summ.len(),
-            cmp::Ordering::Less => conf.file_count,
-            _ => summ.len(),
-        };
-
-        summ[..boundry].to_vec()
+        self.reporter
+            .output(&self.config, &self.general_info, &self.ownerships_info);
     }
 }
 
 pub struct Stdout {}
 
 impl<'a> Reporter<'a> for Stdout {
-    fn output(&self, config: &Config, report_info: &ReportStructure<'a>) {
-        let scopes = report_info
-            .commit_bucket
+    fn output(
+        &self,
+        config: &Config,
+        general_info: &ReportStructure<'a>,
+        ownerships_info: &Option<Ownerships<'a>>,
+    ) {
+        self.output_commit_bucket(&general_info.commit_bucket);
+        self.output_file_summs(map_file_summs(
+            &config,
+            &general_info.commit_bucket.info.file_summs,
+        ));
+
+        if let Some(ow_info) = ownerships_info {
+            let ow_buckets = &ow_info.ow_buckets;
+            println!("|| Ownerships Summary ||");
+            println!("length: {}", ow_buckets.len());
+            for info in ow_buckets.iter() {
+                println!("{}: {}", "owner".cyan(), info.config.name.to_string());
+                println!("{}: {}", "authors".green(), info.config.authors.join(""));
+                self.output_commit_bucket(&info.cm_bucket);
+                let file_summs = map_file_summs(&config, &info.cm_bucket.info.file_summs);
+                self.output_file_summs(file_summs);
+            }
+        }
+    }
+
+    fn output_commit_bucket(&self, bucket: &CommitBucket) {
+        let scopes = bucket
             .info
             .scopes
             .keys()
@@ -78,8 +97,7 @@ impl<'a> Reporter<'a> for Stdout {
             .collect::<Vec<_>>()
             .join(", ");
 
-        let types = report_info
-            .commit_bucket
+        let types = bucket
             .info
             .types
             .keys()
@@ -89,8 +107,10 @@ impl<'a> Reporter<'a> for Stdout {
 
         println!("{}: {}", "scopes".cyan().bold(), scopes);
         println!("{}: {}", "types".cyan().bold(), types);
+    }
 
-        for file_sum in report_info.file_summs.iter() {
+    fn output_file_summs(&self, file_stat_infos: Vec<&FileStatInfo>) {
+        for file_sum in file_stat_infos.iter() {
             println!(
                 "{:<20}{:<10}{:<10}{:<10}",
                 format!("{}:", file_sum.path),
@@ -103,11 +123,3 @@ impl<'a> Reporter<'a> for Stdout {
         }
     }
 }
-
-// struct JsonReporter {}
-
-// impl Reporter for JsonReporter {
-//     fn output(&self) -> ! {
-//         let x = 1;
-//     }
-// }
