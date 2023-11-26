@@ -119,12 +119,6 @@ impl CommitBucket {
                                 match &info.stats {
                                     Some(stats) => {
                                         for file_stat_info in &stats.file_stat_infos {
-                                            println!(
-                                                "{}: {} || is match: {}",
-                                                pattern,
-                                                file_stat_info.path,
-                                                regex.is_match(&file_stat_info.path).to_string()
-                                            );
                                             if regex.is_match(&file_stat_info.path) {
                                                 return false;
                                             }

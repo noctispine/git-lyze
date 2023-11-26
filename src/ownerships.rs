@@ -22,7 +22,6 @@ impl<'a> Ownerships<'a> {
                     let rpattern = format!(r"{}", pattern);
 
                     let regex = Regex::new(&rpattern).unwrap();
-                    println!("{}", cm.summary);
                     if !regex.is_match(&cm.summary) {
                         continue;
                     }
