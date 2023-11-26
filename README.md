@@ -19,6 +19,7 @@
 	- [x] start_date
 	- [x] end_date
 	- [x] ownership
-- [ ] Ownership
+- [x] Ownership
 - [ ] Merge config file and args instead overriding
+- [ ] Add revert analysis
 
