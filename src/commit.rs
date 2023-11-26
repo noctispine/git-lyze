@@ -1,6 +1,6 @@
-use crate::config::{Config, OwnershipConfig};
+use crate::config::Config;
 use crate::convention::ConventionBuilder;
-use crate::customerror::{Error, Result};
+use crate::customerror::Result;
 use crate::repo::Repo;
 use crate::utils::parse_date;
 use git2::{Commit, DiffStatsFormat};
@@ -119,15 +119,22 @@ impl CommitBucket {
                                 match &info.stats {
                                     Some(stats) => {
                                         for file_stat_info in &stats.file_stat_infos {
+                                            println!(
+                                                "{}: {} || is match: {}",
+                                                pattern,
+                                                file_stat_info.path,
+                                                regex.is_match(&file_stat_info.path).to_string()
+                                            );
                                             if regex.is_match(&file_stat_info.path) {
-                                                return true;
+                                                return false;
                                             }
+                                            return true;
                                         }
                                     }
-                                    None => return false,
+                                    None => return true,
                                 }
                             }
-                            false
+                            true
                         })
                 })
                 .filter(|info| {
