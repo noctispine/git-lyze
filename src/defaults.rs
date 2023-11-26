@@ -1,4 +1,4 @@
-use crate::config::{DateFormatType, SortType};
+use crate::config::{DateFormatType, SortType, OutputType};
 
 pub fn convention_style() -> String {
     "type(optional_scope): description".to_string()
@@ -20,4 +20,6 @@ pub fn sort_files() -> SortType {
     SortType::Desc
 }
 
-
+pub fn output_type() -> OutputType {
+    OutputType::Json
+}
