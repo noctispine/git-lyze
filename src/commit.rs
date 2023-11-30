@@ -62,6 +62,28 @@ impl CommitBucket {
         config: &Config,
     ) -> Result<CommitBucket> {
         let g_commits = repo.get_commits()?;
+        let g_commits =
+            g_commits
+                .iter()
+                .filter(|commit| {
+                    let is_after_start = config.start_date.as_ref().map_or(true, |start_date| {
+                        parse_date(&start_date, &config.date_format, &config.date_format_type)
+                            .map_or(true, |parsed_start_date| {
+                                return commit.time().seconds().cmp(&parsed_start_date).is_ge();
+                            })
+                    });
+
+                    let is_before_end =
+                        config.end_date.as_ref().map_or(true, |end_date| {
+                            parse_date(&end_date, &config.date_format, &config.date_format_type)
+                                .map_or(true, |parsed_end_date| {
+                                    return commit.time().seconds().cmp(&parsed_end_date).is_le();
+                                })
+                        });
+
+                    is_after_start && is_before_end
+                })
+                .collect::<Vec<&Commit>>();
 
         let mut commits: Vec<CommitInfo> = vec![];
 
@@ -87,69 +109,50 @@ impl CommitBucket {
             commits.push(commit_info);
         }
 
-        let commits: Vec<CommitInfo> =
-            commits
-                .into_iter()
-                .filter(|info| {
-                    config
-                        .filter_authors
-                        .as_ref()
-                        .map_or(true, |author| author.contains(&info.author.name))
-                })
-                .filter(|info| {
-                    config
-                        .filter_scopes
-                        .as_ref()
-                        .map_or(true, |scope| scope.contains(&info.scope))
-                })
-                .filter(|info| {
-                    config
-                        .filter_types
-                        .as_ref()
-                        .map_or(true, |type_| type_.contains(&info.type_))
-                })
-                .filter(|info| {
-                    config
-                        .filter_filenames
-                        .as_ref()
-                        .map_or(true, |filename_patterns| {
-                            for pattern in filename_patterns {
-                                let pattern = format!(r"{}", pattern);
-                                let regex = Regex::new(&pattern).unwrap();
-                                match &info.stats {
-                                    Some(stats) => {
-                                        for file_stat_info in &stats.file_stat_infos {
-                                            if regex.is_match(&file_stat_info.path) {
-                                                return false;
-                                            }
-                                            return true;
+        let commits: Vec<CommitInfo> = commits
+            .into_iter()
+            .filter(|info| {
+                config
+                    .filter_authors
+                    .as_ref()
+                    .map_or(true, |author| author.contains(&info.author.name))
+            })
+            .filter(|info| {
+                config
+                    .filter_scopes
+                    .as_ref()
+                    .map_or(true, |scope| scope.contains(&info.scope))
+            })
+            .filter(|info| {
+                config
+                    .filter_types
+                    .as_ref()
+                    .map_or(true, |type_| type_.contains(&info.type_))
+            })
+            .filter(|info| {
+                config
+                    .filter_filenames
+                    .as_ref()
+                    .map_or(true, |filename_patterns| {
+                        for pattern in filename_patterns {
+                            let pattern = format!(r"{}", pattern);
+                            let regex = Regex::new(&pattern).unwrap();
+                            match &info.stats {
+                                Some(stats) => {
+                                    for file_stat_info in &stats.file_stat_infos {
+                                        if regex.is_match(&file_stat_info.path) {
+                                            return false;
                                         }
+                                        return true;
                                     }
-                                    None => return true,
                                 }
+                                None => return true,
                             }
-                            true
-                        })
-                })
-                .filter(|info| {
-                    config.start_date.as_ref().map_or(true, |start_date| {
-                        parse_date(&start_date, &config.date_format, &config.date_format_type)
-                            .map_or(true, |parsed_start_date| {
-                                return info.time.cmp(&parsed_start_date).is_gt();
-                            })
+                        }
+                        true
                     })
-                })
-                .filter(|info| {
-                    config.end_date.as_ref().map_or(true, |end_date| {
-                        parse_date(&end_date, &config.date_format, &config.date_format_type).map_or(
-                            true,
-                            |parsed_end_date| {
-                                return info.time.cmp(&parsed_end_date).is_lt();
-                            },
-                        )
-                    })
-                })
-                .collect();
+            })
+            .collect();
 
         let bucket_info = Self::collect_bucket_info(&commits);
 
