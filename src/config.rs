@@ -63,7 +63,7 @@ pub struct Config {
     pub end_date: Option<String>,
 
     /// Date format
-    #[arg(long, default_value = "%a %b %e %T %Y %z")]
+    #[arg(long, default_value = "%b %e %T %Y %z")]
     #[serde(default = "date_format")]
     pub date_format: String,
 
