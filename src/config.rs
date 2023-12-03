@@ -1,13 +1,7 @@
+use crate::defaults::{convention_style, date_format, date_format_type, file_count, sort_files};
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::path;
-use crate::defaults::{
-    convention_style,
-    date_format,
-    date_format_type,
-    file_count,
-    sort_files
-};
 
 #[derive(Serialize, Deserialize, Debug, Parser)]
 #[serde(rename_all = "camelCase")]
@@ -38,9 +32,13 @@ pub struct Config {
     #[serde(default = "convention_style")]
     pub convention_style: String,
 
-    // filter by changed file patterns
-    #[arg(short = 'f', long = "file-patterns", value_parser, num_args=1..)]
-    pub filter_filenames: Option<Vec<String>>,
+    /// Exclude by changed files' names
+    #[arg(long = "exclude-file-patterns", value_parser, num_args=1..)]
+    pub exclude_filename_patterns: Option<Vec<String>>,
+
+    /// Filter by filenames
+    #[arg(short = 'f', long = "filename-patterns", value_parser, num_args=1..)]
+    pub filter_filename_patterns: Option<Vec<String>>,
 
     /// Filter by author's username
     #[arg(short = 'u', long = "authors", value_parser, num_args=1..)]
@@ -108,5 +106,5 @@ pub enum SortType {
 #[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]
 pub enum OutputType {
     Json,
-    Stdout
+    Stdout,
 }

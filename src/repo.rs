@@ -1,5 +1,5 @@
 use crate::customerror::{Error, Result};
-use git2::{Commit, Diff, Repository, Sort};
+use git2::{Commit, Diff, DiffOptions, Repository, Sort};
 use std::io;
 use std::path::Path;
 
@@ -45,12 +45,12 @@ impl Repo {
             .map_err(|_| Error::GitError(git2::Error::from_str("Couldn't find the commit")))
     }
 
-    pub fn get_diff(&self, commit: &git2::Commit) -> Option<Diff> {
+    pub fn get_diff(&self, commit: &git2::Commit, opts: Option<&mut DiffOptions>) -> Option<Diff> {
         if let Ok(prev_commit) = commit.parent(0) {
             let diff = self.dot_git.diff_tree_to_tree(
                 prev_commit.tree().ok().as_ref(),
                 commit.tree().ok().as_ref(),
-                None,
+                opts,
             );
 
             match diff {

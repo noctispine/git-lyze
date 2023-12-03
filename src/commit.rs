@@ -3,7 +3,7 @@ use crate::convention::ConventionBuilder;
 use crate::customerror::Result;
 use crate::repo::Repo;
 use crate::utils::parse_date;
-use git2::{Commit, DiffStatsFormat};
+use git2::{Commit, DiffOptions, DiffStatsFormat};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -102,7 +102,7 @@ impl CommitBucket {
                 summary: g_commit.summary().unwrap_or("").to_string(),
                 type_: parsed_message_info.type_,
                 scope: parsed_message_info.optional_scope.unwrap_or("".to_string()),
-                stats: Self::get_stats(&repo, &g_commit),
+                stats: Self::get_stats(&repo, &config, &g_commit),
                 time: g_commit.time().seconds(),
             };
 
@@ -131,7 +131,7 @@ impl CommitBucket {
             })
             .filter(|info| {
                 config
-                    .filter_filenames
+                    .exclude_filename_patterns
                     .as_ref()
                     .map_or(true, |filename_patterns| {
                         for pattern in filename_patterns {
@@ -162,8 +162,21 @@ impl CommitBucket {
         })
     }
 
-    fn get_stats(repo: &Repo, commit: &Commit) -> Option<Stats> {
-        let raw_diff = match repo.get_diff(commit) {
+    fn get_stats(repo: &Repo, config: &Config, commit: &Commit) -> Option<Stats> {
+        let mut diff_opts = DiffOptions::new();
+
+        let opts = match &config.filter_filename_patterns {
+            Some(file_patterns) => {
+                for f in file_patterns.iter() {
+                    diff_opts.pathspec(f);
+                }
+
+                Some(&mut diff_opts)
+            }
+            None => None,
+        };
+
+        let raw_diff = match repo.get_diff(commit, opts) {
             Some(diff) => diff,
             None => return None,
         };

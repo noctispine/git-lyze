@@ -74,7 +74,7 @@ impl<'a> Reporter<'a> for Stdout {
             println!("========================\n");
             println!("length: {}", ow_buckets.len());
             for info in ow_buckets.iter() {
-                println!("{}: {}", "owner".cyan(), info.config.name.to_string());
+                println!("\n{}: {}", "owner".cyan(), info.config.name.to_string());
                 println!("{}: {}", "authors".green(), info.config.authors.join(""));
                 self.output_commit_bucket(&info.cm_bucket);
                 let file_summs = map_file_summs(&config, &info.cm_bucket.info.file_summs);
