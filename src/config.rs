@@ -1,4 +1,7 @@
-use crate::defaults::{convention_style, date_format, date_format_type, file_count, sort_files};
+use crate::defaults::{
+    cache_path, convention_style, date_format, date_format_type, file_count, log_level,
+    revert_message_pattern, sort_files,
+};
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use std::path;
@@ -27,10 +30,15 @@ pub struct Config {
     #[arg(long)]
     pub path: Option<String>,
 
-    // Convetion style
+    /// Convetion style
     #[arg(short = 't', long, default_value = "type(optional_scope): description")]
     #[serde(default = "convention_style")]
     pub convention_style: String,
+
+    /// Revert Message Pattern
+    #[arg(long, default_value = "revert_indicator \"message\"")]
+    #[serde(default = "revert_message_pattern")]
+    pub revert_message_pattern: String,
 
     /// Exclude by changed files' names
     #[arg(long = "exclude-file-patterns", value_parser, num_args=1..)]
@@ -38,7 +46,7 @@ pub struct Config {
 
     /// Filter by filenames
     #[arg(short = 'f', long = "filename-patterns", value_parser, num_args=1..)]
-    pub filter_filename_patterns: Option<Vec<String>>,
+    pub filter_filename_pattern: Option<String>,
 
     /// Filter by author's username
     #[arg(short = 'u', long = "authors", value_parser, num_args=1..)]
@@ -81,6 +89,16 @@ pub struct Config {
 
     #[clap(skip)]
     pub ownerships: Option<Vec<OwnershipConfig>>,
+
+    /// Cache path
+    #[arg(long, default_value = ".lyze.cache.json")]
+    #[serde(default = "cache_path")]
+    pub cache_path: String,
+
+    /// Log Level
+    #[arg(long, value_enum, default_value_t = LogLevel::Off)]
+    #[serde(default = "log_level")]
+    pub log_level: LogLevel,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -107,4 +125,15 @@ pub enum SortType {
 pub enum OutputType {
     Json,
     Stdout,
+}
+
+#[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]
+pub enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+    Performance,
+    Off,
 }

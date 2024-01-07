@@ -1,8 +1,8 @@
-use std::{cmp, collections::HashMap};
+use std::{cmp, collections::HashMap, env::set_var};
 
 use crate::{
     commit::FileStatInfo,
-    config::{Config, DateFormatType, SortType},
+    config::{Config, DateFormatType, LogLevel, SortType},
 };
 use chrono::{DateTime, NaiveDate, NaiveDateTime};
 
@@ -41,4 +41,16 @@ pub fn map_file_summs<'a>(
     };
 
     summ[..boundry].to_vec()
+}
+
+pub fn set_log_env(log_level: &LogLevel) {
+    let key = "RUST_LOG";
+    match log_level {
+        LogLevel::Error => set_var(key, "error"),
+        LogLevel::Warn => set_var(key, "warn"),
+        LogLevel::Info => set_var(key, "info"),
+        LogLevel::Debug => set_var(key, "debug"),
+        LogLevel::Trace => set_var(key, "trace"),
+        _ => set_var(key, "off"),
+    };
 }
