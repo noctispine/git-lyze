@@ -1,10 +1,8 @@
-use crate::{
-    commit::{CommitBucket, FileStatInfo},
-    config::Config,
-    ownerships::Ownerships,
-    utils::map_file_summs,
+use crate::{commit::CommitBucket, config::Config, ownerships::Ownerships, utils::map_file_summs};
+use tabled::{
+    builder::Builder,
+    settings::{style::Style, themes::ColumnNames},
 };
-use colored::Colorize;
 
 pub trait Reporter<'a> {
     fn output(
@@ -13,14 +11,14 @@ pub trait Reporter<'a> {
         report_info: &CommitBucket,
         ownerships_info: &Option<Ownerships<'a>>,
     );
-    fn output_commit_bucket(&self, bucket: &CommitBucket);
-    fn output_file_summs(&self, file_stat_infos: Vec<&FileStatInfo>);
+    // fn output_commit_bucket(&self, bucket: &CommitBucket);
+    // fn output_file_summs(&self, file_summs: &FileSumms);
 }
 
 pub struct BaseReporter<'a> {
     config: &'a Config,
     reporter: Box<dyn Reporter<'a>>,
-    general_info: &'a CommitBucket,
+    bucket: &'a CommitBucket,
     ownerships_info: Option<Ownerships<'a>>,
 }
 
@@ -38,14 +36,14 @@ impl<'a> BaseReporter<'a> {
         BaseReporter {
             config,
             reporter,
-            general_info: commit_bucket,
+            bucket: commit_bucket,
             ownerships_info,
         }
     }
 
     pub fn output(&self) {
         self.reporter
-            .output(&self.config, &self.general_info, &self.ownerships_info);
+            .output(&self.config, &self.bucket, &self.ownerships_info);
     }
 }
 
@@ -55,66 +53,51 @@ impl<'a> Reporter<'a> for Stdout {
     fn output(
         &self,
         config: &Config,
-        general_info: &CommitBucket,
+        report_info: &CommitBucket,
         ownerships_info: &Option<Ownerships<'a>>,
     ) {
-        println!("\n=====================");
-        println!("|| General Summary ||");
-        println!("=====================\n");
-        self.output_commit_bucket(&general_info);
-        self.output_file_summs(map_file_summs(
-            &config,
-            &general_info.info.file_summs,
-        ));
-
-        if let Some(ow_info) = ownerships_info {
-            let ow_buckets = &ow_info.ow_buckets;
-            println!("\n========================");
-            println!("|| Ownerships Summary ||");
-            println!("========================\n");
-            println!("length: {}", ow_buckets.len());
-            for info in ow_buckets.iter() {
-                println!("\n{}: {}", "owner".cyan(), info.config.name.to_string());
-                println!("{}: {}", "authors".green(), info.config.authors.join(""));
-                self.output_commit_bucket(&info.cm_bucket);
-                let file_summs = map_file_summs(&config, &info.cm_bucket.info.file_summs);
-                self.output_file_summs(file_summs);
-            }
+        let (mut scopes, mut types, mut files_summs) = (
+            vec![vec![String::from("scopes"), String::from("count")]],
+            vec![vec![String::from("types"), String::from("count")]],
+            vec![vec![
+                String::from("file path"),
+                String::from("total changes"),
+                String::from("insertions"),
+                String::from("deletions"),
+            ]],
+        );
+        for (_type, count) in report_info.info.types.iter() {
+            types.push(vec![_type.clone(), count.clone().to_string()]);
         }
-    }
 
-    fn output_commit_bucket(&self, bucket: &CommitBucket) {
-        let scopes = bucket
-            .info
-            .scopes
-            .keys()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let mut type_table = Builder::from(types).build();
+        type_table
+            .with(Style::modern())
+            .with(ColumnNames::default());
 
-        let types = bucket
-            .info
-            .types
-            .keys()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        println!("{}: {}", "scopes".cyan().bold(), scopes);
-        println!("{}: {}", "types".cyan().bold(), types);
-    }
-
-    fn output_file_summs(&self, file_stat_infos: Vec<&FileStatInfo>) {
-        for file_sum in file_stat_infos.iter() {
-            println!(
-                "{:<30}{:<10}{:<10}{:<10}",
-                format!("{}:", file_sum.path),
-                format!("+{}", file_sum.inserted).green(),
-                format!("-{}", file_sum.deleted).red(),
-                format!("{}", file_sum.total_changes)
-                    .italic()
-                    .bright_yellow()
-            );
+        for (scope, count) in report_info.info.scopes.iter() {
+            scopes.push(vec![scope.clone(), count.clone().to_string()]);
         }
+
+        let mut scope_table = Builder::from(scopes).build();
+        scope_table
+            .with(Style::modern())
+            .with(ColumnNames::default());
+
+        let file_summs = map_file_summs(&config, &report_info.info.file_summs);
+        for file_summ in file_summs.iter() {
+            files_summs.push(vec![
+                file_summ.path.to_string(),
+                file_summ.total_changes.to_string(),
+                file_summ.inserted.to_string(),
+                file_summ.deleted.to_string(),
+            ]);
+        }
+        let mut files_summs_table = Builder::from(files_summs).build();
+        files_summs_table
+            .with(Style::modern())
+            .with(ColumnNames::default());
+
+        println!("{type_table}\n{scope_table}\n{files_summs_table}");
     }
 }
