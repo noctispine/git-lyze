@@ -4,7 +4,7 @@ use clap::Parser;
 use git2::{Repository, Signature};
 use tempfile::TempDir;
 
-use crate::{config::Config, repo::Repo};
+use crate::{cache::Cache, config::Config, repo::Repo};
 
 pub fn mock_config(args: Option<Vec<&str>>) -> Config {
     if let Some(args) = args {
@@ -64,4 +64,10 @@ pub fn setup_repo(temp_dir: &TempDir) -> (Repo, String) {
         Repo::init(temp_dir.path()).expect("Failed to init repo"),
         "type(optional_scope): description".to_string(),
     )
+}
+
+pub fn setup_cache_dir(path: &String) {
+    let mut cache = Cache::new(&path);
+    cache.set("foo".to_string(), "bar".to_string());
+    drop(cache);
 }
