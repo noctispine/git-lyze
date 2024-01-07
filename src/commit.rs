@@ -1,29 +1,34 @@
+use crate::cache::Cache;
 use crate::config::Config;
 use crate::convention::ConventionBuilder;
 use crate::customerror::Result;
 use crate::repo::Repo;
+use crate::tracker::{Tracker, TrackerOpts};
 use crate::utils::parse_date;
+use colored::Color;
 use git2::{Commit, DiffOptions, DiffStatsFormat};
+use log::info;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::vec;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Author {
     pub name: String,
     pub email: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Stats {
+    pub cm_id: String,
     pub file_stat_infos: Vec<FileStatInfo>,
     pub changed_files_count: usize,
     pub insertions: usize,
     pub deletions: usize,
     pub total_changes: usize,
 }
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileStatInfo {
     pub path: String,
     pub inserted: usize,
@@ -31,7 +36,7 @@ pub struct FileStatInfo {
     pub total_changes: i64,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct CommitInfo {
     pub author: Author,
     pub summary: String,
@@ -41,17 +46,19 @@ pub struct CommitInfo {
     pub time: i64,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Clone)]
 pub struct CommitBucket {
     pub commits: Vec<CommitInfo>,
     pub info: BucketInfo,
 }
 
-#[derive(Clone)]
+pub type FileSumms = HashMap<String, FileStatInfo>;
+
+#[derive(Serialize, Clone)]
 pub struct BucketInfo {
     pub types: HashMap<String, u32>,
     pub scopes: HashMap<String, u32>,
-    pub file_summs: HashMap<String, FileStatInfo>,
+    pub file_summs: FileSumms,
     pub total: usize,
 }
 
@@ -61,7 +68,18 @@ impl CommitBucket {
         example_commit_message: &str,
         config: &Config,
     ) -> Result<CommitBucket> {
+        let mut perf_tracker = Tracker::new(&config, Color::Cyan, None);
+        let mut cache = Cache::new(&format!(
+            "{}/{}",
+            &config.path.clone().unwrap_or("./".to_string()),
+            &config.cache_path
+        ));
+
+        perf_tracker.start("commit :: get commits from repo");
         let g_commits = repo.get_commits()?;
+        perf_tracker.stop();
+
+        perf_tracker.start("commit :: filter commits by date");
         let g_commits =
             g_commits
                 .iter()
@@ -85,10 +103,15 @@ impl CommitBucket {
                 })
                 .collect::<Vec<&Commit>>();
 
+        perf_tracker.stop();
+
         let mut commits: Vec<CommitInfo> = vec![];
 
+        perf_tracker.start("commit :: convention builder");
         let convention_builder = ConventionBuilder::build(example_commit_message);
+        perf_tracker.stop();
 
+        perf_tracker.start("commit :: parse commit wrt convention builder");
         for g_commit in g_commits {
             let parsed_message_info = convention_builder
                 .construct_info(g_commit.summary().unwrap_or("").to_string())
@@ -102,13 +125,15 @@ impl CommitBucket {
                 summary: g_commit.summary().unwrap_or("").to_string(),
                 type_: parsed_message_info.type_,
                 scope: parsed_message_info.optional_scope.unwrap_or("".to_string()),
-                stats: Self::get_stats(&repo, &config, &g_commit),
+                stats: Self::get_stats(&repo, &mut cache, &config, &g_commit),
                 time: g_commit.time().seconds(),
             };
 
             commits.push(commit_info);
         }
+        perf_tracker.stop();
 
+        perf_tracker.start("commit :: filter commits by config");
         let commits: Vec<CommitInfo> = commits
             .into_iter()
             .filter(|info| {
@@ -152,9 +177,29 @@ impl CommitBucket {
                         true
                     })
             })
+            .filter(|info| {
+                config
+                    .filter_filename_pattern
+                    .as_ref()
+                    .map_or(true, |filename_pattern| {
+                        let regex = Regex::new(&format!(r"{}", filename_pattern)).unwrap();
+                        if let Some(stats) = &info.stats {
+                            for file_stat_info in &stats.file_stat_infos {
+                                if !regex.is_match(file_stat_info.path.as_str()) {
+                                    return false;
+                                }
+                                return true;
+                            }
+                        }
+                        false
+                    })
+            })
             .collect();
+        perf_tracker.stop();
 
+        perf_tracker.start("commit :: collect bucket info");
         let bucket_info = Self::collect_bucket_info(&commits);
+        perf_tracker.stop();
 
         Ok(CommitBucket {
             commits,
@@ -162,60 +207,113 @@ impl CommitBucket {
         })
     }
 
-    fn get_stats(repo: &Repo, config: &Config, commit: &Commit) -> Option<Stats> {
-        let mut diff_opts = DiffOptions::new();
+    fn get_stats(
+        repo: &Repo,
+        cache: &mut Cache,
+        config: &Config,
+        commit: &Commit,
+    ) -> Option<Stats> {
+        let mut file_stat_infos: Option<Vec<FileStatInfo>> = None;
 
-        let opts = match &config.filter_filename_patterns {
-            Some(file_patterns) => {
-                for f in file_patterns.iter() {
-                    diff_opts.pathspec(f);
-                }
-
-                Some(&mut diff_opts)
+        let mut perf_tracker = Tracker::new(
+            &config,
+            Color::Cyan,
+            Some(TrackerOpts {
+                write_once: Some(true),
+            }),
+        );
+        perf_tracker.start("commit :: get_stats :: get commit stat from cache");
+        if let Some(stats) = cache.get(commit.id().to_string()) {
+            info!("get commit {} stats from cache", commit.id());
+            if let Ok(stats) = serde_json::from_str(stats) {
+                file_stat_infos = Some(stats);
             }
-            None => None,
         };
+        perf_tracker.stop();
 
-        let raw_diff = match repo.get_diff(commit, opts) {
-            Some(diff) => diff,
-            None => return None,
-        };
+        perf_tracker.start("commit :: get_stats :: compute commit diff");
+        if file_stat_infos.is_none() {
+            let mut diff_opts = DiffOptions::new();
 
-        let diff_total: git2::DiffStats = match raw_diff.stats() {
-            Ok(diff) => diff,
-            Err(_) => return None,
-        };
+            let raw_diff = match repo.get_diff(commit, Some(&mut diff_opts)) {
+                Some(diff) => diff,
+                None => return None,
+            };
 
-        let file_stat_infos = diff_total
-            .to_buf(DiffStatsFormat::NUMBER, 1)
-            .map_or(String::new(), |f| f.as_str().unwrap_or("").to_string())
-            .lines()
-            .map(|line| {
-                let normalized_line = line
-                    .split(" ")
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                let normalized_line = normalized_line.split(" ").collect::<Vec<_>>();
-                let deleted = normalized_line[1].parse::<usize>().unwrap_or(0);
-                let inserted = normalized_line[0].parse::<usize>().unwrap_or(0);
+            let diff_total: git2::DiffStats = match raw_diff.stats() {
+                Ok(diff) => diff,
+                Err(_) => return None,
+            };
 
-                FileStatInfo {
-                    path: normalized_line[2].to_string(),
-                    inserted,
-                    deleted,
-                    total_changes: inserted as i64 - deleted as i64,
-                }
+            let mutated_diff_total = diff_total
+                .to_buf(DiffStatsFormat::NUMBER, 1)
+                .map_or(String::new(), |f| f.as_str().unwrap_or("").to_string())
+                .lines()
+                .map(|line| {
+                    let normalized_line = line
+                        .split(" ")
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let normalized_line = normalized_line.split(" ").collect::<Vec<_>>();
+                    let deleted = normalized_line[1].parse::<usize>().unwrap_or(0);
+                    let inserted = normalized_line[0].parse::<usize>().unwrap_or(0);
+                    FileStatInfo {
+                        path: normalized_line[2].to_string(),
+                        inserted,
+                        deleted,
+                        total_changes: inserted as i64 + deleted as i64,
+                    }
+                })
+                .collect::<Vec<FileStatInfo>>();
+            if let Ok(file_stat_infos_str) = serde_json::to_string(&mutated_diff_total) {
+                info!("add {} to cache", commit.id().clone());
+                cache.set(commit.id().clone().to_string(), file_stat_infos_str);
+            }
+
+            file_stat_infos = Some(mutated_diff_total);
+        }
+        perf_tracker.stop();
+
+        perf_tracker.start("commit :: get_stats :: filter file info by file patterns");
+        let filtered_file_stat_infos = file_stat_infos
+            .unwrap()
+            .into_iter()
+            .filter(|file_stat_info| {
+                match &config.filter_filename_pattern {
+                    Some(pattern) => {
+                        let pattern = format!(r"{}", pattern);
+                        let regex = Regex::new(&pattern).unwrap();
+                        if regex.is_match(&file_stat_info.path) {
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    None => return true,
+                };
             })
             .collect::<Vec<FileStatInfo>>();
+        perf_tracker.stop();
 
-        Some(Stats {
-            file_stat_infos,
-            changed_files_count: diff_total.files_changed(),
-            deletions: diff_total.deletions(),
-            insertions: diff_total.insertions(),
-            total_changes: diff_total.deletions() + diff_total.insertions(),
-        })
+        let deletions = filtered_file_stat_infos
+            .iter()
+            .fold(0, |acc, stat| acc + stat.deleted);
+
+        let insertions = filtered_file_stat_infos
+            .iter()
+            .fold(0, |acc, stat| acc + stat.inserted);
+
+        let stats = Stats {
+            cm_id: commit.id().to_string(),
+            file_stat_infos: filtered_file_stat_infos.clone(),
+            changed_files_count: filtered_file_stat_infos.len(),
+            deletions,
+            insertions,
+            total_changes: insertions + deletions,
+        };
+
+        Some(stats)
     }
 
     pub fn collect_bucket_info(commits: &Vec<CommitInfo>) -> BucketInfo {

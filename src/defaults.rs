@@ -1,4 +1,4 @@
-use crate::config::{DateFormatType, SortType, OutputType};
+use crate::config::{DateFormatType, LogLevel, OutputType, SortType};
 
 pub fn convention_style() -> String {
     "type(optional_scope): description".to_string()
@@ -22,4 +22,16 @@ pub fn sort_files() -> SortType {
 
 pub fn output_type() -> OutputType {
     OutputType::Json
+}
+
+pub fn cache_path() -> String {
+    ".lyze.config.json".to_string()
+}
+
+pub fn revert_message_pattern() -> String {
+    "revert_indicator \"message\"".to_string()
+}
+
+pub fn log_level() -> LogLevel {
+    LogLevel::Off
 }
