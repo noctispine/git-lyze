@@ -1,3 +1,4 @@
+use std::sync::mpsc::RecvError;
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
@@ -14,6 +15,9 @@ pub enum Error {
 
     #[error("Serde Json error: `${0}`")]
     SerdeError(#[from] serde_json::Error),
+
+    #[error("Thread err: `${0}`")]
+    RecvError(#[from] RecvError),
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

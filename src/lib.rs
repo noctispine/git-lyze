@@ -10,6 +10,7 @@ pub mod reporters;
 pub mod test_utils;
 pub mod tracker;
 pub mod utils;
+pub mod window;
 
 use crate::utils::set_log_env;
 use std::{env::current_dir, fs::File, path::Path};

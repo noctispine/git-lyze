@@ -78,9 +78,8 @@ pub struct Config {
     pub date_format_type: DateFormatType,
 
     /// File Summary, show N files
-    #[arg(long, default_value_t = 10)]
-    #[serde(default = "file_count")]
-    pub file_count: usize,
+    #[arg(long)]
+    pub file_count: Option<usize>,
 
     /// File Summary, sort files by
     #[arg(long, value_enum, default_value_t = SortType::Desc)]
@@ -120,6 +119,12 @@ pub enum DateFormatType {
 pub enum SortType {
     Asc,
     Desc,
+}
+
+impl Default for SortType {
+    fn default() -> Self {
+        SortType::Desc
+    }
 }
 #[derive(ValueEnum, Serialize, Deserialize, Clone, Debug)]
 pub enum OutputType {

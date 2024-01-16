@@ -34,9 +34,13 @@ pub fn map_file_summs<'a>(
         SortType::Desc => b.total_changes.abs().cmp(&a.total_changes.abs()),
     });
 
-    let boundry = match conf.file_count.cmp(&summ.len()) {
+    if conf.file_count.is_none() {
+        return summ;
+    }
+
+    let boundry = match conf.file_count.unwrap().cmp(&summ.len()) {
         cmp::Ordering::Greater => summ.len(),
-        cmp::Ordering::Less => conf.file_count,
+        cmp::Ordering::Less => conf.file_count.unwrap(),
         _ => summ.len(),
     };
 
