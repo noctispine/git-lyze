@@ -54,10 +54,22 @@ pub struct CommitBucket {
 
 pub type FileSumms = HashMap<String, FileStatInfo>;
 
+#[derive(Serialize, Debug, Clone)]
+pub struct FreqInfo {
+    pub count: u32,
+    pub freq: f64,
+}
+
+#[derive(Serialize, Debug, Clone, Default)]
+pub struct Freq {
+    pub total: u32,
+    pub info: HashMap<String, FreqInfo>,
+}
+
 #[derive(Serialize, Clone)]
 pub struct BucketInfo {
-    pub types: HashMap<String, u32>,
-    pub scopes: HashMap<String, u32>,
+    pub types: Freq,
+    pub scopes: Freq,
     pub file_summs: FileSumms,
     pub total: usize,
 }
@@ -318,21 +330,21 @@ impl CommitBucket {
 
     pub fn collect_bucket_info(commits: &Vec<CommitInfo>) -> BucketInfo {
         let mut file_summs: HashMap<String, FileStatInfo> = HashMap::new();
-        let mut types: HashMap<String, u32> = HashMap::new();
-        let mut scopes: HashMap<String, u32> = HashMap::new();
+        let mut types_count: HashMap<String, u32> = HashMap::new();
+        let mut scopes_count: HashMap<String, u32> = HashMap::new();
         let total = commits.len();
 
         for commit in commits.iter() {
             if !commit.type_.is_empty() {
                 let c_commit_type = commit.type_.clone();
-                let new_count = types.get(&c_commit_type).unwrap_or(&0) + 1;
-                types.insert(c_commit_type, new_count);
+                let new_count = types_count.get(&c_commit_type).unwrap_or(&0) + 1;
+                types_count.insert(c_commit_type, new_count);
             }
 
             if !commit.scope.is_empty() {
                 let c_scope = commit.scope.clone();
-                let new_count = scopes.get(&c_scope).unwrap_or(&0) + 1;
-                scopes.insert(c_scope, new_count);
+                let new_count = scopes_count.get(&c_scope).unwrap_or(&0) + 1;
+                scopes_count.insert(c_scope, new_count);
             }
 
             match &commit.stats {
@@ -369,6 +381,46 @@ impl CommitBucket {
             };
         }
 
+        let types_total = types_count
+            .clone()
+            .into_iter()
+            .fold(0, |acc, (_, value)| acc + value);
+
+        let mut types = Freq {
+            info: HashMap::new(),
+            total: types_total,
+        };
+
+        let scopes_total = scopes_count
+            .clone()
+            .into_iter()
+            .fold(0, |acc, (_, value)| acc + value);
+
+        let mut scopes = Freq {
+            total: scopes_total,
+            info: HashMap::new(),
+        };
+
+        for (key, value) in types_count.into_iter() {
+            types.info.insert(
+                key.to_string(),
+                FreqInfo {
+                    count: value.to_owned(),
+                    freq: value as f64 / types_total as f64,
+                },
+            );
+        }
+
+        for (key, value) in scopes_count.into_iter() {
+            scopes.info.insert(
+                key.to_string(),
+                FreqInfo {
+                    count: value.to_owned(),
+                    freq: value as f64 / types_total as f64,
+                },
+            );
+        }
+
         BucketInfo {
             types,
             scopes,
@@ -396,21 +448,24 @@ mod tests {
                 .expect("Failed to build commit bucket");
 
         assert_eq!(bucket.commits.len(), 5);
-        assert_eq!(bucket.info.types.len(), 2);
-        assert!(bucket.info.types.contains_key("feat") && bucket.info.types.contains_key("test"));
-
-        let feat_val = bucket.info.types.get("feat");
-        assert!(feat_val.is_some());
-        assert_eq!(feat_val.unwrap(), &2);
-
-        let main_val = bucket.info.scopes.get("main");
-        assert!(main_val.is_some());
-        assert_eq!(main_val.unwrap(), &2);
-        assert_eq!(bucket.info.scopes.len(), 3);
+        assert_eq!(bucket.info.types.total, 4);
         assert!(
-            bucket.info.scopes.contains_key("main")
-                && bucket.info.scopes.contains_key("commit")
-                && bucket.info.scopes.contains_key("repo")
+            bucket.info.types.info.contains_key("feat")
+                && bucket.info.types.info.contains_key("test")
+        );
+
+        let feat_val = bucket.info.types.info.get("feat");
+        assert!(feat_val.is_some());
+        assert_eq!(feat_val.unwrap().count, 2);
+
+        let main_val = bucket.info.scopes.info.get("main");
+        assert!(main_val.is_some());
+        assert_eq!(main_val.unwrap().count, 2);
+        assert_eq!(bucket.info.scopes.total, 4);
+        assert!(
+            bucket.info.scopes.info.contains_key("main")
+                && bucket.info.scopes.info.contains_key("commit")
+                && bucket.info.scopes.info.contains_key("repo")
         );
         assert_eq!(bucket.info.total, 5);
     }
